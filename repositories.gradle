@@ -1,5 +1,26 @@
 // Add any additional repositories for your dependencies here.
 
 repositories {
-
+    maven {
+        name = "Scarsz Maven"
+        url = "https://nexus.scarsz.me/content/groups/public/"
+    }
+    maven {
+        name = "Sonatype OSS Snapshots"
+        url = "https://oss.sonatype.org/content/repositories/snapshots"
+    }
+    // For JDA and other discordsrv dependencies
+    mavenCentral()
+    maven {
+        name = "DV8FromTheWorld Maven"
+        url = "https://maven.devs.rip/"
+    }
+    maven {
+        name = "ParchmentMC"
+        url = "https://maven.parchmentmc.net/releases/"
+    }
+    maven {
+        name = "Kotori Maven"
+        url = "https://maven.kotori.dev/"
+    }
 }
