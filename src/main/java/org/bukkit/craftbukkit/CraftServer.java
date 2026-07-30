@@ -34,6 +34,7 @@ public class CraftServer implements Server {
     private final CraftScheduler scheduler = new CraftScheduler();
     private final CraftPluginManager pluginManager = new CraftPluginManager();
     private final SimpleCommandMap commandMap = new SimpleCommandMap();
+    private final CraftServicesManager servicesManager = new CraftServicesManager();
     private final String version;
     private final Map<UUID, CraftPlayer> playerCache = new HashMap<>();
     private final List<World> worlds = new ArrayList<>();
@@ -178,7 +179,7 @@ public class CraftServer implements Server {
 
     @Override
     public ServicesManager getServicesManager() {
-        return null;
+        return servicesManager;
     }
 
     @Override

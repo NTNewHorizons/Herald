@@ -35,4 +35,10 @@ public class Configuration {
     public boolean isSet(String path) {
         return values.containsKey(path);
     }
+
+    public void addDefault(String path, Object value) {
+        if (!values.containsKey(path)) {
+            values.put(path, value);
+        }
+    }
 }
