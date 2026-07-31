@@ -1,6 +1,7 @@
 package org.bukkit;
 
 public class GameRule<T> {
+
     public static final GameRule<Boolean> ANNOUNCE_ADVANCEMENTS = new GameRule<>("announceAdvancements", Boolean.class);
 
     private final String name;

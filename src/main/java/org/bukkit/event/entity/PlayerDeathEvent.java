@@ -4,6 +4,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 
 public class PlayerDeathEvent extends EntityEvent implements Cancellable {
+
     private String deathMessage;
     private boolean cancelled;
 

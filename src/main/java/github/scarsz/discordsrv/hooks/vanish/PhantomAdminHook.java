@@ -1,8 +1,9 @@
 package github.scarsz.discordsrv.hooks.vanish;
 
-import github.scarsz.discordsrv.util.PluginUtil;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
+
+import github.scarsz.discordsrv.util.PluginUtil;
 
 @Deprecated
 public class PhantomAdminHook implements VanishHook {

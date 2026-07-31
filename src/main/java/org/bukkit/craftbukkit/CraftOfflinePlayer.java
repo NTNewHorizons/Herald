@@ -1,10 +1,12 @@
 package org.bukkit.craftbukkit;
 
 import java.util.UUID;
+
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 public class CraftOfflinePlayer implements OfflinePlayer {
+
     private final UUID uuid;
     private final String name;
 
@@ -49,6 +51,5 @@ public class CraftOfflinePlayer implements OfflinePlayer {
     }
 
     @Override
-    public void setOp(boolean value) {
-    }
+    public void setOp(boolean value) {}
 }

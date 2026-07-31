@@ -1,8 +1,9 @@
 package github.scarsz.discordsrv.hooks.world;
 
+import org.bukkit.plugin.Plugin;
+
 import github.scarsz.discordsrv.hooks.PluginHook;
 import github.scarsz.discordsrv.util.PluginUtil;
-import org.bukkit.plugin.Plugin;
 
 @Deprecated
 public class MultiverseCoreHook implements PluginHook {

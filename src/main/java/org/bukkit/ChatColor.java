@@ -1,10 +1,9 @@
 package org.bukkit;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 public enum ChatColor {
+
     BLACK('0'),
     DARK_BLUE('1'),
     DARK_GREEN('2'),
@@ -35,7 +34,7 @@ public enum ChatColor {
 
     ChatColor(char code) {
         this.code = code;
-        this.toString = new String(new char[]{COLOR_CHAR, code});
+        this.toString = new String(new char[] { COLOR_CHAR, code });
     }
 
     @Override
@@ -44,7 +43,9 @@ public enum ChatColor {
     }
 
     public static String stripColor(String input) {
-        return input == null ? null : STRIP_COLOR_PATTERN.matcher(input).replaceAll("");
+        return input == null ? null
+            : STRIP_COLOR_PATTERN.matcher(input)
+                .replaceAll("");
     }
 
     public static String translateAlternateColorCodes(char altColorChar, String textToTranslate) {

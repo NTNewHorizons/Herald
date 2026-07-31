@@ -1,6 +1,7 @@
 package org.bukkit.configuration.file;
 
 public class YamlConfigurationOptions {
+
     private final YamlConfiguration configuration;
     private int indent = 2;
 

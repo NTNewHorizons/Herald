@@ -3,6 +3,7 @@ package org.bukkit.event.player;
 import org.bukkit.entity.Player;
 
 public class PlayerKickEvent extends PlayerEvent implements org.bukkit.event.Cancellable {
+
     private String leaveMessage;
     private String reason;
     private boolean cancelled;

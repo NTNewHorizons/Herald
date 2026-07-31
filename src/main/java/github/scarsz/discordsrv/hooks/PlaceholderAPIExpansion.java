@@ -1,15 +1,14 @@
 package github.scarsz.discordsrv.hooks;
 
-import github.scarsz.discordsrv.util.PluginUtil;
 import org.bukkit.plugin.Plugin;
+
+import github.scarsz.discordsrv.util.PluginUtil;
 
 public class PlaceholderAPIExpansion implements PluginHook {
 
-    public PlaceholderAPIExpansion() {
-    }
+    public PlaceholderAPIExpansion() {}
 
-    public void register() {
-    }
+    public void register() {}
 
     @Override
     public Plugin getPlugin() {

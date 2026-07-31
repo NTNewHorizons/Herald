@@ -1,36 +1,20 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.objects.managers.link.file;
-
-import github.scarsz.discordsrv.Debug;
-import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.objects.managers.link.AbstractAccountLinkManager;
-import github.scarsz.discordsrv.util.DiscordUtil;
-import github.scarsz.discordsrv.util.LangUtil;
-import github.scarsz.discordsrv.util.MessageUtil;
-import github.scarsz.discordsrv.util.PrettyUtil;
-import net.dv8tion.jda.api.entities.User;
-import org.apache.commons.collections4.bidimap.DualHashBidiMap;
-import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,6 +23,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import net.dv8tion.jda.api.entities.User;
+
+import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
+
+import github.scarsz.discordsrv.Debug;
+import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.objects.managers.link.AbstractAccountLinkManager;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import github.scarsz.discordsrv.util.LangUtil;
+import github.scarsz.discordsrv.util.MessageUtil;
+import github.scarsz.discordsrv.util.PrettyUtil;
+
 public abstract class AbstractFileAccountLinkManager extends AbstractAccountLinkManager {
 
     final DualHashBidiMap<String, UUID> linkedAccounts = new DualHashBidiMap<>();
@@ -46,7 +44,9 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
     public AbstractFileAccountLinkManager() {
         try {
             load();
-            DiscordSRV.debug(Debug.ACCOUNT_LINKING, getClass().getSimpleName() + " loaded " + linkedAccounts.size() + " linked accounts");
+            DiscordSRV.debug(
+                Debug.ACCOUNT_LINKING,
+                getClass().getSimpleName() + " loaded " + linkedAccounts.size() + " linked accounts");
         } catch (IOException e) {
             DiscordSRV.error("Failed to load linked accounts", e);
         }
@@ -95,18 +95,21 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
         String mention = user == null ? "" : user.getAsMention();
 
         if (contains) {
-            if (DiscordSRV.config().getBoolean("MinecraftDiscordAccountLinkedAllowRelinkBySendingANewCode")) {
+            if (DiscordSRV.config()
+                .getBoolean("MinecraftDiscordAccountLinkedAllowRelinkBySendingANewCode")) {
                 unlink(discordId);
             } else {
                 UUID uuid;
                 synchronized (linkedAccounts) {
                     uuid = linkedAccounts.get(discordId);
                 }
-                OfflinePlayer offlinePlayer = DiscordSRV.getPlugin().getServer().getOfflinePlayer(uuid);
+                OfflinePlayer offlinePlayer = DiscordSRV.getPlugin()
+                    .getServer()
+                    .getOfflinePlayer(uuid);
                 return LangUtil.Message.ALREADY_LINKED.toString()
-                        .replace("%username%", PrettyUtil.beautifyUsername(offlinePlayer, "<Unknown>", false))
-                        .replace("%uuid%", uuid.toString())
-                        .replace("%mention%", mention);
+                    .replace("%username%", PrettyUtil.beautifyUsername(offlinePlayer, "<Unknown>", false))
+                    .replace("%uuid%", uuid.toString())
+                    .replace("%mention%", mention);
             }
         }
 
@@ -119,25 +122,24 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
 
             OfflinePlayer player = Bukkit.getOfflinePlayer(getUuid(discordId));
             if (player.isOnline()) {
-                MessageUtil.sendMessage(Bukkit.getPlayer(getUuid(discordId)), LangUtil.Message.MINECRAFT_ACCOUNT_LINKED.toString()
+                MessageUtil.sendMessage(
+                    Bukkit.getPlayer(getUuid(discordId)),
+                    LangUtil.Message.MINECRAFT_ACCOUNT_LINKED.toString()
                         .replace("%username%", user == null ? "" : user.getName())
-                        .replace("%id%", user == null ? "" : user.getId())
-                );
+                        .replace("%id%", user == null ? "" : user.getId()));
             }
 
             return LangUtil.Message.DISCORD_ACCOUNT_LINKED.toString()
-                    .replace("%name%", PrettyUtil.beautifyUsername(player, "<Unknown>", false))
-                    .replace("%displayname%", PrettyUtil.beautifyNickname(player, "<Unknown>", false))
-                    .replace("%uuid%", getUuid(discordId).toString())
-                    .replace("%mention%", mention);
+                .replace("%name%", PrettyUtil.beautifyUsername(player, "<Unknown>", false))
+                .replace("%displayname%", PrettyUtil.beautifyNickname(player, "<Unknown>", false))
+                .replace("%uuid%", getUuid(discordId).toString())
+                .replace("%mention%", mention);
         }
 
-        String reply = linkCode.length() == 4
-                ? LangUtil.Message.UNKNOWN_CODE.toString()
-                : LangUtil.Message.INVALID_CODE.toString();
-        return reply
-                .replace("%code%", linkCode)
-                .replace("%mention%", mention);
+        String reply = linkCode.length() == 4 ? LangUtil.Message.UNKNOWN_CODE.toString()
+            : LangUtil.Message.INVALID_CODE.toString();
+        return reply.replace("%code%", linkCode)
+            .replace("%mention%", mention);
     }
 
     @Override
@@ -192,7 +194,8 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
 
     @Override
     public void link(String discordId, UUID uuid) {
-        if (discordId.trim().isEmpty()) {
+        if (discordId.trim()
+            .isEmpty()) {
             throw new IllegalArgumentException("Empty Discord IDs are not allowed");
         }
         DiscordSRV.debug(Debug.ACCOUNT_LINKING, "File backed link: " + discordId + ": " + uuid);
@@ -239,6 +242,7 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
     }
 
     abstract void load() throws IOException;
+
     abstract File getFile();
 
 }

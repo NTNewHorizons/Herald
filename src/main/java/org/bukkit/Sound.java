@@ -1,6 +1,7 @@
 package org.bukkit;
 
 public enum Sound {
+
     BLOCK_NOTE_BLOCK_PLING("block.note_block.pling"),
     ENTITY_PLAYER_LEVELUP("entity.player.levelup");
 

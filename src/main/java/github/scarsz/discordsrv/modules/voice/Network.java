@@ -1,33 +1,31 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.modules.voice;
 
-import github.scarsz.discordsrv.Debug;
-import github.scarsz.discordsrv.DiscordSRV;
+import java.util.*;
+
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.VoiceChannel;
+
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-import java.util.*;
+import github.scarsz.discordsrv.Debug;
+import github.scarsz.discordsrv.DiscordSRV;
 
 public class Network {
 
@@ -54,24 +52,29 @@ public class Network {
             deniedPermissions.add(Permission.VIEW_CHANNEL);
         }
 
-        VoiceModule.getCategory().createVoiceChannel(UUID.randomUUID().toString())
-                .addPermissionOverride(
-                        VoiceModule.getGuild().getPublicRole(),
-                        allowedPermissions,
-                        deniedPermissions
-                )
-                .addPermissionOverride(
-                        VoiceModule.getGuild().getSelfMember(),
-                        Arrays.asList(Permission.VIEW_CHANNEL, Permission.VOICE_CONNECT, Permission.VOICE_MOVE_OTHERS),
-                        Collections.emptyList()
-                )
-                .queue(channel -> {
-                    this.channel = channel.getId();
-                    initialized = true;
-                }, e -> {
-                    DiscordSRV.error("Failed to create network for " + players + ": " + e.getMessage());
-                    VoiceModule.get().getNetworks().remove(this);
-                });
+        VoiceModule.getCategory()
+            .createVoiceChannel(
+                UUID.randomUUID()
+                    .toString())
+            .addPermissionOverride(
+                VoiceModule.getGuild()
+                    .getPublicRole(),
+                allowedPermissions,
+                deniedPermissions)
+            .addPermissionOverride(
+                VoiceModule.getGuild()
+                    .getSelfMember(),
+                Arrays.asList(Permission.VIEW_CHANNEL, Permission.VOICE_CONNECT, Permission.VOICE_MOVE_OTHERS),
+                Collections.emptyList())
+            .queue(channel -> {
+                this.channel = channel.getId();
+                initialized = true;
+            }, e -> {
+                DiscordSRV.error("Failed to create network for " + players + ": " + e.getMessage());
+                VoiceModule.get()
+                    .getNetworks()
+                    .remove(this);
+            });
     }
 
     public Network engulf(Network network) {
@@ -86,12 +89,20 @@ public class Network {
      */
     public boolean isPlayerInRangeToBeAdded(Player player) {
         return players.stream()
-                .map(Bukkit::getPlayer)
-                .filter(Objects::nonNull)
-                .filter(p -> !p.equals(player))
-                .filter(p -> p.getWorld().getName().equals(player.getWorld().getName()))
-                .anyMatch(p -> VoiceModule.verticalDistance(p.getLocation(), player.getLocation()) <= VoiceModule.getVerticalStrength()
-                        && VoiceModule.horizontalDistance(p.getLocation(), player.getLocation()) <= VoiceModule.getHorizontalStrength());
+            .map(Bukkit::getPlayer)
+            .filter(Objects::nonNull)
+            .filter(p -> !p.equals(player))
+            .filter(
+                p -> p.getWorld()
+                    .getName()
+                    .equals(
+                        player.getWorld()
+                            .getName()))
+            .anyMatch(
+                p -> VoiceModule.verticalDistance(p.getLocation(), player.getLocation())
+                    <= VoiceModule.getVerticalStrength()
+                    && VoiceModule.horizontalDistance(p.getLocation(), player.getLocation())
+                        <= VoiceModule.getHorizontalStrength());
     }
 
     /**
@@ -100,12 +111,20 @@ public class Network {
     public boolean isPlayerInRangeToStayConnected(Player player) {
         double falloff = VoiceModule.getFalloff();
         return players.stream()
-                .map(Bukkit::getPlayer)
-                .filter(Objects::nonNull)
-                .filter(p -> !p.equals(player))
-                .filter(p -> p.getWorld().getName().equals(player.getWorld().getName()))
-                .anyMatch(p -> VoiceModule.verticalDistance(p.getLocation(), player.getLocation()) <= VoiceModule.getVerticalStrength() + falloff
-                        && VoiceModule.horizontalDistance(p.getLocation(), player.getLocation()) <= VoiceModule.getHorizontalStrength() + falloff);
+            .map(Bukkit::getPlayer)
+            .filter(Objects::nonNull)
+            .filter(p -> !p.equals(player))
+            .filter(
+                p -> p.getWorld()
+                    .getName()
+                    .equals(
+                        player.getWorld()
+                            .getName()))
+            .anyMatch(
+                p -> VoiceModule.verticalDistance(p.getLocation(), player.getLocation())
+                    <= VoiceModule.getVerticalStrength() + falloff
+                    && VoiceModule.horizontalDistance(p.getLocation(), player.getLocation())
+                        <= VoiceModule.getHorizontalStrength() + falloff);
     }
 
     /**
@@ -116,16 +135,22 @@ public class Network {
         double horizontalStrength = VoiceModule.getHorizontalStrength();
         double verticalStrength = VoiceModule.getHorizontalStrength();
         return players.stream()
-                .map(Bukkit::getPlayer)
-                .filter(Objects::nonNull)
-                .filter(p -> !p.equals(player))
-                .filter(p -> p.getWorld().getName().equals(player.getWorld().getName()))
-                .anyMatch(p -> {
-                    double vertical = VoiceModule.verticalDistance(p.getLocation(), player.getLocation());
-                    double horizontal = VoiceModule.horizontalDistance(p.getLocation(), player.getLocation());
-                    return vertical > verticalStrength && vertical <= verticalStrength + falloff
-                            && horizontal > horizontal && horizontal <= horizontalStrength + falloff;
-                });
+            .map(Bukkit::getPlayer)
+            .filter(Objects::nonNull)
+            .filter(p -> !p.equals(player))
+            .filter(
+                p -> p.getWorld()
+                    .getName()
+                    .equals(
+                        player.getWorld()
+                            .getName()))
+            .anyMatch(p -> {
+                double vertical = VoiceModule.verticalDistance(p.getLocation(), player.getLocation());
+                double horizontal = VoiceModule.horizontalDistance(p.getLocation(), player.getLocation());
+                return vertical > verticalStrength && vertical <= verticalStrength + falloff
+                    && horizontal > horizontal
+                    && horizontal <= horizontalStrength + falloff;
+            });
     }
 
     public void clear() {
@@ -166,7 +191,8 @@ public class Network {
 
     public VoiceChannel getChannel() {
         if (channel == null || channel.isEmpty()) return null;
-        return VoiceModule.getGuild().getVoiceChannelById(channel);
+        return VoiceModule.getGuild()
+            .getVoiceChannelById(channel);
     }
 
     public boolean isInitialized() {

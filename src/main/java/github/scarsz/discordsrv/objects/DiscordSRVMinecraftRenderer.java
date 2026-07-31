@@ -1,43 +1,41 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.objects;
 
-import dev.vankka.mcdiscordreserializer.renderer.implementation.DefaultMinecraftRenderer;
-import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.DiscordUtil;
-import lombok.NonNull;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.TextChannel;
 import net.kyori.adventure.text.Component;
+
 import org.jetbrains.annotations.Nullable;
+
+import dev.vankka.mcdiscordreserializer.renderer.implementation.DefaultMinecraftRenderer;
+import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.util.DiscordUtil;
+import lombok.NonNull;
 
 public class DiscordSRVMinecraftRenderer extends DefaultMinecraftRenderer {
 
     @Override
-    public @Nullable Component appendEmoteMention(@NonNull Component component, @NonNull String name, @NonNull String id) {
-        String behavior = DiscordSRV.config().getString("DiscordChatChannelEmoteBehavior");
-        return behavior.equalsIgnoreCase("name")
-                ? component.append(Component.text(":" + name + ":"))
-                : component;
+    public @Nullable Component appendEmoteMention(@NonNull Component component, @NonNull String name,
+        @NonNull String id) {
+        String behavior = DiscordSRV.config()
+            .getString("DiscordChatChannelEmoteBehavior");
+        return behavior.equalsIgnoreCase("name") ? component.append(Component.text(":" + name + ":")) : component;
     }
 
     @Override
@@ -58,7 +56,8 @@ public class DiscordSRVMinecraftRenderer extends DefaultMinecraftRenderer {
     public @Nullable Component appendRoleMention(@NonNull Component component, @NonNull String id) {
         Role role = null;
         try {
-            role = DiscordUtil.getJda().getRoleById(id);
+            role = DiscordUtil.getJda()
+                .getRoleById(id);
         } catch (Throwable ignored) {}
         if (role != null) component = component.append(Component.text("@" + role.getName()));
         return component;

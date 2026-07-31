@@ -3,6 +3,7 @@ package org.bukkit.configuration;
 import java.util.Map;
 
 public class Configuration {
+
     private Map<String, Object> values = new java.util.LinkedHashMap<>();
 
     public void set(String path, Object value) {

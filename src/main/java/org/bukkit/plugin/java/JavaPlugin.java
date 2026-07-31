@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.logging.Logger;
+
 import org.bukkit.Server;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -14,6 +15,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.PluginDescriptionFile;
 
 public abstract class JavaPlugin implements Plugin, CommandExecutor, TabCompleter {
+
     private static JavaPlugin instance;
 
     private PluginDescriptionFile description;
@@ -78,16 +80,13 @@ public abstract class JavaPlugin implements Plugin, CommandExecutor, TabComplete
     }
 
     @Override
-    public void onEnable() {
-    }
+    public void onEnable() {}
 
     @Override
-    public void onDisable() {
-    }
+    public void onDisable() {}
 
     @Override
-    public void onLoad() {
-    }
+    public void onLoad() {}
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -99,8 +98,7 @@ public abstract class JavaPlugin implements Plugin, CommandExecutor, TabComplete
         return Collections.emptyList();
     }
 
-    public void saveDefaultConfig() {
-    }
+    public void saveDefaultConfig() {}
 
     @SuppressWarnings("unchecked")
     public static <T extends JavaPlugin> T getPlugin(Class<T> clazz) {

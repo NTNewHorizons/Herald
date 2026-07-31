@@ -3,6 +3,7 @@ package org.bukkit;
 import java.util.Date;
 
 public class BanEntry {
+
     private final String target;
     private final Date created;
     private String reason;

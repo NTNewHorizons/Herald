@@ -8,28 +8,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.WorldServer;
+
 import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.WarningState;
 import org.bukkit.World;
-import org.bukkit.entity.Entity;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.SimpleCommandMap;
 import org.bukkit.craftbukkit.command.CraftConsoleCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.craftbukkit.scheduler.CraftScheduler;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.ServicesManager;
 
 public class CraftServer implements Server {
+
     private MinecraftServer console;
     private final CraftScheduler scheduler = new CraftScheduler();
     private final CraftPluginManager pluginManager = new CraftPluginManager();
@@ -75,7 +77,8 @@ public class CraftServer implements Server {
 
     @Override
     public String getVersion() {
-        return MinecraftServer.getServer().getMinecraftVersion() + "-Forge";
+        return MinecraftServer.getServer()
+            .getMinecraftVersion() + "-Forge";
     }
 
     @Override
@@ -113,7 +116,8 @@ public class CraftServer implements Server {
                     for (Object obj : world.playerEntities) {
                         if (obj instanceof EntityPlayerMP) {
                             EntityPlayerMP ep = (EntityPlayerMP) obj;
-                            if (ep.getUniqueID().equals(uuid)) {
+                            if (ep.getUniqueID()
+                                .equals(uuid)) {
                                 return getCraftPlayer(ep);
                             }
                         }
@@ -147,6 +151,7 @@ public class CraftServer implements Server {
     @Override
     public BanList getBanList(BanList.Type type) {
         return new BanList() {
+
             @Override
             public Set<org.bukkit.BanEntry> getBanEntries() {
                 return new HashSet<>();
@@ -158,12 +163,10 @@ public class CraftServer implements Server {
             }
 
             @Override
-            public void addBan(String target, String reason, java.util.Date expires, String source) {
-            }
+            public void addBan(String target, String reason, java.util.Date expires, String source) {}
 
             @Override
-            public void pardon(String target) {
-            }
+            public void pardon(String target) {}
         };
     }
 
@@ -198,7 +201,8 @@ public class CraftServer implements Server {
         if (sender instanceof org.bukkit.craftbukkit.entity.CraftPlayer) {
             icommandsender = ((org.bukkit.craftbukkit.entity.CraftPlayer) sender).getHandle();
         }
-        console.getCommandManager().executeCommand(icommandsender, command);
+        console.getCommandManager()
+            .executeCommand(icommandsender, command);
         return true;
     }
 

@@ -1,8 +1,10 @@
 package github.scarsz.discordsrv.api.events;
 
-import github.scarsz.discordsrv.util.MessageUtil;
 import net.kyori.adventure.text.Component;
+
 import org.bukkit.event.Cancellable;
+
+import github.scarsz.discordsrv.util.MessageUtil;
 
 public class VentureChatMessagePreProcessEvent extends VentureChatMessageEvent implements Cancellable {
 

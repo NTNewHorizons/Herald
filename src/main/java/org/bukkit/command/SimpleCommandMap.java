@@ -2,9 +2,9 @@ package org.bukkit.command;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.bukkit.plugin.Plugin;
 
 public class SimpleCommandMap {
+
     private final Map<String, Command> knownCommands = new ConcurrentHashMap<>();
 
     public void register(String label, String fallbackPrefix, Command command) {

@@ -1,6 +1,7 @@
 package org.bukkit.plugin;
 
 public enum ServicePriority {
+
     Lowest(0),
     Low(1),
     Normal(2),

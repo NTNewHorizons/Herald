@@ -1,23 +1,17 @@
 package com.herald;
 
-import cpw.mods.fml.common.FMLCommonHandler;
-import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.commands.Command;
-import github.scarsz.discordsrv.util.GamePermissionUtil;
-import github.scarsz.discordsrv.util.LangUtil;
+import java.util.Arrays;
+
 import net.minecraft.command.CommandBase;
-import net.minecraft.command.CommandException;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.ChatComponentText;
-import net.minecraft.util.IChatComponent;
+
 import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.command.CraftConsoleCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 
-import java.lang.reflect.Method;
-import java.util.Arrays;
-import java.util.Map;
+import github.scarsz.discordsrv.DiscordSRV;
 
 public class CommandDiscord extends CommandBase {
 
@@ -59,7 +53,8 @@ public class CommandDiscord extends CommandBase {
         String command = args.length > 0 ? args[0] : "";
         String[] commandArgs = args.length > 1 ? Arrays.copyOfRange(args, 1, args.length) : new String[0];
 
-        plugin.getCommandManager().handle(bukkitSender, command, commandArgs);
+        plugin.getCommandManager()
+            .handle(bukkitSender, command, commandArgs);
     }
 
     @Override

@@ -1,29 +1,25 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.objects;
 
-import org.apache.commons.collections4.bidimap.DualHashBidiMap;
-
 import java.lang.ref.WeakReference;
 import java.util.*;
+
+import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 
 public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
 
@@ -49,7 +45,8 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
     }
 
     public V putExpiring(K key, V value, long expiryTime) {
-        if (expiryTime < System.currentTimeMillis()) throw new IllegalArgumentException("The expiry time must be in the future");
+        if (expiryTime < System.currentTimeMillis())
+            throw new IllegalArgumentException("The expiry time must be in the future");
         synchronized (expiryTimes) {
             expiryTimes.put(key, expiryTime);
         }
@@ -89,7 +86,7 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
         return expiryDelay;
     }
 
-    @SuppressWarnings({"SuspiciousMethodCalls"})
+    @SuppressWarnings({ "SuspiciousMethodCalls" })
     private void keyExpired(Object key) {
         remove(key);
         expiryTimes.remove(key);
@@ -101,7 +98,8 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
 
         private ExpiryThread() {
             super("DiscordSRV " + ExpiryThread.class.getSimpleName());
-            Runtime.getRuntime().addShutdownHook(new Thread(this::interrupt));
+            Runtime.getRuntime()
+                .addShutdownHook(new Thread(this::interrupt));
         }
 
         @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
@@ -120,9 +118,10 @@ public class ExpiringDualHashBidiMap<K, V> extends DualHashBidiMap<K, V> {
                         expiryTimes = new HashMap<>(collection.expiryTimes);
                     }
                     List<Object> removals = new ArrayList<>();
-                    expiryTimes.entrySet().stream()
-                            .filter(entry -> entry.getValue() < currentTime)
-                            .forEach(entry -> removals.add(entry.getKey()));
+                    expiryTimes.entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue() < currentTime)
+                        .forEach(entry -> removals.add(entry.getKey()));
                     synchronized (collection) {
                         removals.forEach(collection::keyExpired);
                     }

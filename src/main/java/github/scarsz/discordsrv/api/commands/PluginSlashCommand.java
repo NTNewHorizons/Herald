@@ -1,33 +1,30 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.api.commands;
 
-import java.util.Objects;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.interactions.commands.build.CommandData;
-import org.bukkit.plugin.Plugin;
-
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+
+import org.bukkit.plugin.Plugin;
 
 /**
  * {@link CommandData} wrapper that includes the originating {@link Plugin}
@@ -66,7 +63,8 @@ public final class PluginSlashCommand {
      *
      * @param plugin      the owning plugin
      * @param commandData the built command data
-     * @param guildIds    the applicable guild IDs for this command. if not provided, command will be applicable to all guilds
+     * @param guildIds    the applicable guild IDs for this command. if not provided, command will be applicable to all
+     *                    guilds
      */
     public PluginSlashCommand(Plugin plugin, CommandData commandData, String... guildIds) {
         this(plugin, commandData, SlashCommandPriority.NORMAL, guildIds);
@@ -78,9 +76,11 @@ public final class PluginSlashCommand {
      * @param plugin      the owning plugin
      * @param commandData the built command data
      * @param priority    the priority of this slash command
-     * @param guildIds    the applicable guild IDs for this command. if not provided, command will be applicable to all guilds
+     * @param guildIds    the applicable guild IDs for this command. if not provided, command will be applicable to all
+     *                    guilds
      */
-    public PluginSlashCommand(Plugin plugin, CommandData commandData, SlashCommandPriority priority, String... guildIds) {
+    public PluginSlashCommand(Plugin plugin, CommandData commandData, SlashCommandPriority priority,
+        String... guildIds) {
         this.plugin = plugin;
         this.commandData = commandData;
         this.priority = priority;
@@ -177,7 +177,9 @@ public final class PluginSlashCommand {
         if (!(o instanceof PluginSlashCommand)) return false;
 
         PluginSlashCommand that = (PluginSlashCommand) o;
-        return Objects.equals(getPlugin(), that.getPlugin()) && Objects.equals(getCommandData(), that.getCommandData()) && getGuilds().equals(that.getGuilds()) && getPriority() == that.getPriority();
+        return Objects.equals(getPlugin(), that.getPlugin()) && Objects.equals(getCommandData(), that.getCommandData())
+            && getGuilds().equals(that.getGuilds())
+            && getPriority() == that.getPriority();
     }
 
     @Override
@@ -190,6 +192,13 @@ public final class PluginSlashCommand {
     }
 
     public String toString() {
-        return "PluginSlashCommand(plugin=" + this.getPlugin() + ", commandData=" + this.getCommandData() + ", guilds=" + this.getGuilds() + ", priority=" + this.getPriority() + ")";
+        return "PluginSlashCommand(plugin=" + this.getPlugin()
+            + ", commandData="
+            + this.getCommandData()
+            + ", guilds="
+            + this.getGuilds()
+            + ", priority="
+            + this.getPriority()
+            + ")";
     }
 }

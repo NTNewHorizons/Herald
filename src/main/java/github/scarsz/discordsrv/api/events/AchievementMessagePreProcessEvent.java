@@ -1,34 +1,34 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.api.events;
 
-import github.scarsz.discordsrv.objects.MessageFormat;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.Event;
 
+import github.scarsz.discordsrv.objects.MessageFormat;
+
 /**
- * <p>Called before DiscordSRV has processed a achievement/advancement message, modifications may be overwritten by DiscordSRV's processing.</p>
+ * <p>
+ * Called before DiscordSRV has processed a achievement/advancement message, modifications may be overwritten by
+ * DiscordSRV's processing.
+ * </p>
  */
-@SuppressWarnings({"LombokGetterMayBeUsed", "LombokSetterMayBeUsed"})
+@SuppressWarnings({ "LombokGetterMayBeUsed", "LombokSetterMayBeUsed" })
 public class AchievementMessagePreProcessEvent extends GameEvent<Event> implements Cancellable {
 
     private boolean cancelled;
@@ -37,7 +37,8 @@ public class AchievementMessagePreProcessEvent extends GameEvent<Event> implemen
     private String channel;
     private MessageFormat messageFormat;
 
-    public AchievementMessagePreProcessEvent(String channel, MessageFormat messageFormat, Player player, String achievementName, Event triggeringBukkitEvent) {
+    public AchievementMessagePreProcessEvent(String channel, MessageFormat messageFormat, Player player,
+        String achievementName, Event triggeringBukkitEvent) {
         super(player, triggeringBukkitEvent);
         this.channel = channel;
         this.messageFormat = messageFormat;
@@ -45,7 +46,8 @@ public class AchievementMessagePreProcessEvent extends GameEvent<Event> implemen
     }
 
     @Deprecated
-    public AchievementMessagePreProcessEvent(String channel, MessageFormat messageFormat, Player player, String achievementName) {
+    public AchievementMessagePreProcessEvent(String channel, MessageFormat messageFormat, Player player,
+        String achievementName) {
         super(player, null);
         this.channel = channel;
         this.messageFormat = messageFormat;

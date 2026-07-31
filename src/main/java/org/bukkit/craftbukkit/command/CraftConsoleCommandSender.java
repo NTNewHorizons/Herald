@@ -2,6 +2,7 @@ package org.bukkit.craftbukkit.command;
 
 import java.util.Collections;
 import java.util.Set;
+
 import org.bukkit.Server;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.permissions.PermissionAttachment;
@@ -9,10 +10,10 @@ import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.Plugin;
 
 public class CraftConsoleCommandSender implements ConsoleCommandSender {
+
     private static final CraftConsoleCommandSender instance = new CraftConsoleCommandSender();
 
-    private CraftConsoleCommandSender() {
-    }
+    private CraftConsoleCommandSender() {}
 
     public static CraftConsoleCommandSender getInstance() {
         return instance;

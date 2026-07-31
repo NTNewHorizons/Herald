@@ -6,6 +6,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 
 public class RegisteredListener {
+
     private final Listener listener;
     private final EventPriority priority;
     private final Plugin plugin;
@@ -18,7 +19,8 @@ public class RegisteredListener {
         this.executor = null;
     }
 
-    public RegisteredListener(Listener listener, EventExecutor executor, EventPriority priority, Plugin plugin, boolean ignored) {
+    public RegisteredListener(Listener listener, EventExecutor executor, EventPriority priority, Plugin plugin,
+        boolean ignored) {
         this.listener = listener;
         this.executor = executor;
         this.priority = priority;

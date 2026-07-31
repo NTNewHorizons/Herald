@@ -5,6 +5,7 @@ import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 
 public class ServerCommandEvent extends Event {
+
     private static final HandlerList handlers = new HandlerList();
     private final CommandSender sender;
     private String command;

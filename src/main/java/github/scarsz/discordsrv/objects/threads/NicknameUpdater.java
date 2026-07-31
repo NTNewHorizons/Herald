@@ -1,24 +1,33 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.objects.threads;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
+import net.dv8tion.jda.api.requests.ErrorResponse;
+
+import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
@@ -26,17 +35,6 @@ import github.scarsz.discordsrv.util.DiscordUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.PlaceholderUtil;
 import github.scarsz.discordsrv.util.PlayerUtil;
-import net.dv8tion.jda.api.entities.Guild;
-import net.dv8tion.jda.api.entities.Member;
-import net.dv8tion.jda.api.entities.User;
-import net.dv8tion.jda.api.exceptions.ErrorResponseException;
-import net.dv8tion.jda.api.requests.ErrorResponse;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.entity.Player;
-
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 public class NicknameUpdater extends Thread {
 
@@ -49,10 +47,12 @@ public class NicknameUpdater extends Thread {
     @Override
     public void run() {
         while (true) {
-            int rate = DiscordSRV.config().getInt("NicknameSynchronizationCycleTime");
+            int rate = DiscordSRV.config()
+                .getInt("NicknameSynchronizationCycleTime");
             if (rate < 3) rate = 3;
 
-            if (DiscordSRV.config().getBoolean("NicknameSynchronizationEnabled")) {
+            if (DiscordSRV.config()
+                .getBoolean("NicknameSynchronizationEnabled")) {
                 DiscordSRV.debug(Debug.NICKNAME_SYNC, "Synchronizing nicknames...");
 
                 // Fix NPE with AccountLinkManager
@@ -66,7 +66,8 @@ public class NicknameUpdater extends Thread {
                     continue;
                 }
 
-                Guild guild = DiscordSRV.getPlugin().getMainGuild();
+                Guild guild = DiscordSRV.getPlugin()
+                    .getMainGuild();
                 for (Player onlinePlayer : PlayerUtil.getOnlinePlayers()) {
                     String playerName = onlinePlayer.getName();
                     // skip vanished players
@@ -75,28 +76,36 @@ public class NicknameUpdater extends Thread {
                         continue;
                     }
 
-                    String userId = DiscordSRV.getPlugin().getAccountLinkManager().getDiscordId(onlinePlayer.getUniqueId());
+                    String userId = DiscordSRV.getPlugin()
+                        .getAccountLinkManager()
+                        .getDiscordId(onlinePlayer.getUniqueId());
                     if (userId == null) {
                         DiscordSRV.debug(Debug.NICKNAME_SYNC, playerName + " isn't linked, not setting nickname");
                         continue;
                     }
 
-                    User linkedUser = DiscordUtil.getJda().getUserById(userId);
+                    User linkedUser = DiscordUtil.getJda()
+                        .getUserById(userId);
                     if (linkedUser == null) {
-                        DiscordSRV.debug(Debug.NICKNAME_SYNC, "Could not resolve a valid Discord user for " + playerName + ", not setting nickname");
+                        DiscordSRV.debug(
+                            Debug.NICKNAME_SYNC,
+                            "Could not resolve a valid Discord user for " + playerName + ", not setting nickname");
                         continue;
                     }
 
                     if (guild.getMember(linkedUser) != null) nonMembers.remove(linkedUser.getId());
                     if (nonMembers.contains(linkedUser.getId())) {
-                        DiscordSRV.debug(Debug.NICKNAME_SYNC, linkedUser.getName() + " is not in the Main guild, not setting nickname");
+                        DiscordSRV.debug(
+                            Debug.NICKNAME_SYNC,
+                            linkedUser.getName() + " is not in the Main guild, not setting nickname");
                         continue;
                     }
 
                     // get the member, from cache if it's there otherwise from Discord
                     Member member;
                     try {
-                        member = guild.retrieveMember(linkedUser, false).complete();
+                        member = guild.retrieveMember(linkedUser, false)
+                            .complete();
                     } catch (ErrorResponseException e) {
                         if (e.getErrorResponse() == ErrorResponse.UNKNOWN_MEMBER) {
                             nonMembers.add(linkedUser.getId());
@@ -105,7 +114,9 @@ public class NicknameUpdater extends Thread {
                         throw e;
                     }
                     if (member == null) {
-                        DiscordSRV.debug(Debug.NICKNAME_SYNC, linkedUser.getName() + " is not in the Main guild, not setting nickname");
+                        DiscordSRV.debug(
+                            Debug.NICKNAME_SYNC,
+                            linkedUser.getName() + " is not in the Main guild, not setting nickname");
                         continue;
                     }
 
@@ -130,16 +141,26 @@ public class NicknameUpdater extends Thread {
             Player player = offlinePlayer.getPlayer();
 
             if (!player.hasPermission("discordsrv.nicknamesync")) {
-                DiscordSRV.debug(Debug.NICKNAME_SYNC, "Not syncing nicknames for " + player.getName() + " because they do not have the discordsrv.nicknamesync permission.");
+                DiscordSRV.debug(
+                    Debug.NICKNAME_SYNC,
+                    "Not syncing nicknames for " + player.getName()
+                        + " because they do not have the discordsrv.nicknamesync permission.");
                 return;
             }
 
             DiscordSRV.debug(Debug.NICKNAME_SYNC, "Syncing nickname for " + player.getName());
-            nickname = DiscordSRV.config().getString("NicknameSynchronizationFormat")
-                    .replace("%displayname%", player.getDisplayName() != null ? player.getDisplayName() : player.getName())
-                    .replace("%username%", player.getName())
-                    .replace("%discord_name%", member.getUser().getName())
-                    .replace("%discord_discriminator%", member.getUser().getDiscriminator());
+            nickname = DiscordSRV.config()
+                .getString("NicknameSynchronizationFormat")
+                .replace("%displayname%", player.getDisplayName() != null ? player.getDisplayName() : player.getName())
+                .replace("%username%", player.getName())
+                .replace(
+                    "%discord_name%",
+                    member.getUser()
+                        .getName())
+                .replace(
+                    "%discord_discriminator%",
+                    member.getUser()
+                        .getDiscriminator());
 
             nickname = PlaceholderUtil.replacePlaceholders(nickname, player);
         } else {
@@ -148,7 +169,12 @@ public class NicknameUpdater extends Thread {
 
         nickname = MessageUtil.strip(nickname);
         if (nickname.length() > 32) {
-            DiscordSRV.debug(Debug.NICKNAME_SYNC, "The new nickname for " + offlinePlayer.getName() + " (" + nickname + ") is too long, reducing it to 32 characters.");
+            DiscordSRV.debug(
+                Debug.NICKNAME_SYNC,
+                "The new nickname for " + offlinePlayer.getName()
+                    + " ("
+                    + nickname
+                    + ") is too long, reducing it to 32 characters.");
             nickname = nickname.substring(0, 32);
         }
         DiscordUtil.setNickname(member, nickname);

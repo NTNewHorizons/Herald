@@ -1,31 +1,27 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv;
 
-import lombok.Getter;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import lombok.Getter;
 
 @SuppressWarnings("SpellCheckingInspection")
 public enum Debug {
@@ -48,10 +44,11 @@ public enum Debug {
     UNCATEGORIZED("all"),
     JDA(),
     JDA_REST_ACTIONS("jdarestactions", "jdarest", "restactions", "rest"),
-    CALLSTACKS("stack", "stacks", "callstack",
-            "trace", "traces", "stacktrace", "errors", "exceptions", "exception", "except");
+    CALLSTACKS("stack", "stacks", "callstack", "trace", "traces", "stacktrace", "errors", "exceptions", "exception",
+        "except");
 
-    @Getter private final String[] aliases;
+    @Getter
+    private final String[] aliases;
 
     Debug(String... aliases) {
         this.aliases = aliases;
@@ -59,22 +56,27 @@ public enum Debug {
 
     public boolean matches(String s) {
         return (s.equalsIgnoreCase("all") && this != CALLSTACKS && this != JDA && this != JDA_REST_ACTIONS)
-                || s.equalsIgnoreCase("chat") && (this == MINECRAFT_TO_DISCORD || this == DISCORD_TO_MINECRAFT)
-                || s.equalsIgnoreCase(name())
-                || Arrays.stream(aliases).anyMatch(s::equalsIgnoreCase);
+            || s.equalsIgnoreCase("chat") && (this == MINECRAFT_TO_DISCORD || this == DISCORD_TO_MINECRAFT)
+            || s.equalsIgnoreCase(name())
+            || Arrays.stream(aliases)
+                .anyMatch(s::equalsIgnoreCase);
     }
 
     public boolean isVisible() {
-        Set<String> debuggerCategories = DiscordSRV.getPlugin().getDebuggerCategories();
-        if (!debuggerCategories.isEmpty() && debuggerCategories.stream().anyMatch(this::matches)) {
+        Set<String> debuggerCategories = DiscordSRV.getPlugin()
+            .getDebuggerCategories();
+        if (!debuggerCategories.isEmpty() && debuggerCategories.stream()
+            .anyMatch(this::matches)) {
             return true;
         }
 
-        List<?> debug = DiscordSRV.config().getOptionalList("Debug").orElse(Collections.emptyList());
+        List<?> debug = DiscordSRV.config()
+            .getOptionalList("Debug")
+            .orElse(Collections.emptyList());
         return debug.stream()
-                .filter(obj -> obj instanceof String)
-                .map(str -> (String) str)
-                .anyMatch(this::matches);
+            .filter(obj -> obj instanceof String)
+            .map(str -> (String) str)
+            .anyMatch(this::matches);
     }
 
     public static boolean anyEnabled() {

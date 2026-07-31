@@ -5,26 +5,25 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.world.WorldServer;
+
 import org.bukkit.Location;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.Sound;
 import org.bukkit.World;
-import org.bukkit.craftbukkit.CraftOfflinePlayer;
-import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.MetadataValue;
-import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionAttachment;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.Plugin;
 
 public class CraftPlayer implements Player {
+
     private final EntityPlayerMP handle;
     private final UUID uuid;
 
@@ -53,8 +52,7 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void setDisplayName(String name) {
-    }
+    public void setDisplayName(String name) {}
 
     @Override
     public String getPlayerListName() {
@@ -62,8 +60,7 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void setPlayerListName(String name) {
-    }
+    public void setPlayerListName(String name) {}
 
     @Override
     public boolean isOp() {
@@ -71,8 +68,7 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void setOp(boolean value) {
-    }
+    public void setOp(boolean value) {}
 
     @Override
     public boolean hasPlayedBefore() {
@@ -91,7 +87,13 @@ public class CraftPlayer implements Player {
 
     @Override
     public Location getLocation() {
-        return new Location(getWorld(), handle.posX, handle.posY, handle.posZ, handle.rotationYaw, handle.rotationPitch);
+        return new Location(
+            getWorld(),
+            handle.posX,
+            handle.posY,
+            handle.posZ,
+            handle.rotationYaw,
+            handle.rotationPitch);
     }
 
     @Override
@@ -107,8 +109,7 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void playSound(Location location, Sound sound, float volume, float pitch) {
-    }
+    public void playSound(Location location, Sound sound, float volume, float pitch) {}
 
     @Override
     public Server getServer() {
@@ -161,8 +162,7 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void setMetadata(String metadataKey, MetadataValue metadataValue) {
-    }
+    public void setMetadata(String metadataKey, MetadataValue metadataValue) {}
 
     @Override
     public List<MetadataValue> getMetadata(String metadataKey) {
@@ -175,6 +175,5 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void removeMetadata(String metadataKey, Object plugin) {
-    }
+    public void removeMetadata(String metadataKey, Object plugin) {}
 }

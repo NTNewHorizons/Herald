@@ -13,14 +13,17 @@ public class CommonProxy {
     }
 
     public void init(FMLInitializationEvent event) {
-        HeraldDiscordSRV.getInstance().init(event);
+        HeraldDiscordSRV.getInstance()
+            .init(event);
     }
 
     public void postInit(FMLPostInitializationEvent event) {
-        HeraldDiscordSRV.getInstance().postInit(event);
+        HeraldDiscordSRV.getInstance()
+            .postInit(event);
     }
 
     public void serverStarting(FMLServerStartingEvent event) {
-        HeraldDiscordSRV.getInstance().serverStarting(event);
+        HeraldDiscordSRV.getInstance()
+            .serverStarting(event);
     }
 }

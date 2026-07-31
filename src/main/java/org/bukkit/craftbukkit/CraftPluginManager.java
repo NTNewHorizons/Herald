@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -17,14 +18,14 @@ import org.bukkit.plugin.PluginLoader;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.RegisteredListener;
 
-import net.minecraft.server.MinecraftServer;
-
 public class CraftPluginManager implements PluginManager {
+
     private final Map<Plugin, List<Listener>> listenersByPlugin = new HashMap<>();
 
     @Override
     public void registerEvents(Listener listener, Plugin plugin) {
-        listenersByPlugin.computeIfAbsent(plugin, k -> new ArrayList<>()).add(listener);
+        listenersByPlugin.computeIfAbsent(plugin, k -> new ArrayList<>())
+            .add(listener);
     }
 
     @Override
@@ -60,7 +61,8 @@ public class CraftPluginManager implements PluginManager {
     public void callEvent(Event event) {
         for (List<Listener> listeners : listenersByPlugin.values()) {
             for (Listener listener : listeners) {
-                for (Method method : listener.getClass().getMethods()) {
+                for (Method method : listener.getClass()
+                    .getMethods()) {
                     EventHandler handler = method.getAnnotation(EventHandler.class);
                     if (handler == null) continue;
                     Class<?>[] params = method.getParameterTypes();
@@ -77,8 +79,7 @@ public class CraftPluginManager implements PluginManager {
     }
 
     @Override
-    public void registerInterface(Class<? extends PluginLoader> loader) {
-    }
+    public void registerInterface(Class<? extends PluginLoader> loader) {}
 
     @Override
     public boolean useTimings() {
@@ -101,7 +102,9 @@ public class CraftPluginManager implements PluginManager {
     }
 
     @Override
-    public void registerEvent(Class<? extends Event> eventClass, Listener listener, EventPriority priority, EventExecutor executor, Plugin plugin, boolean ignoreCancelled) {
-        listenersByPlugin.computeIfAbsent(plugin, k -> new ArrayList<>()).add(listener);
+    public void registerEvent(Class<? extends Event> eventClass, Listener listener, EventPriority priority,
+        EventExecutor executor, Plugin plugin, boolean ignoreCancelled) {
+        listenersByPlugin.computeIfAbsent(plugin, k -> new ArrayList<>())
+            .add(listener);
     }
 }

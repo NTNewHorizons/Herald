@@ -1,11 +1,14 @@
 package org.bukkit.craftbukkit;
 
 import java.io.File;
+
 import net.minecraft.world.WorldServer;
+
 import org.bukkit.GameRule;
 import org.bukkit.World;
 
 public class CraftWorld implements World {
+
     private final WorldServer world;
 
     public CraftWorld(WorldServer world) {
@@ -14,7 +17,8 @@ public class CraftWorld implements World {
 
     @Override
     public String getName() {
-        return world.getWorldInfo().getWorldName();
+        return world.getWorldInfo()
+            .getWorldName();
     }
 
     @Override

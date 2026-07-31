@@ -4,8 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.nio.charset.StandardCharsets;
-import org.bukkit.WarningState;
+
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.PluginCommand;
@@ -15,6 +14,7 @@ import org.bukkit.plugin.PluginManager;
 import org.bukkit.scheduler.BukkitScheduler;
 
 public final class Bukkit {
+
     private static Server server;
 
     public static Server getServer() {
@@ -79,7 +79,8 @@ public final class Bukkit {
 
     public static Player getPlayerExact(String name) {
         for (Player p : getOnlinePlayers()) {
-            if (p.getName().equals(name)) return p;
+            if (p.getName()
+                .equals(name)) return p;
         }
         return null;
     }
@@ -93,7 +94,11 @@ public final class Bukkit {
     }
 
     public static OfflinePlayer getOfflinePlayer(String name) {
-        return server != null ? server.getOfflinePlayer(java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8))) : null;
+        return server != null
+            ? server.getOfflinePlayer(
+                java.util.UUID
+                    .nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+            : null;
     }
 
     public static boolean isPrimaryThread() {

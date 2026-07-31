@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Command {
+
     private final String name;
     private final List<String> aliases = new ArrayList<>();
     private String description = "";

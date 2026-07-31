@@ -3,6 +3,7 @@ package org.bukkit.inventory;
 import org.bukkit.Material;
 
 public class ItemStack {
+
     private Material type;
     private int amount;
 

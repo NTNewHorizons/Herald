@@ -3,6 +3,7 @@ package org.bukkit.command;
 import org.bukkit.plugin.Plugin;
 
 public class PluginCommand extends Command {
+
     private final Plugin plugin;
     private CommandExecutor executor;
 
@@ -23,8 +24,7 @@ public class PluginCommand extends Command {
         return executor;
     }
 
-    public void unregister(SimpleCommandMap commandMap) {
-    }
+    public void unregister(SimpleCommandMap commandMap) {}
 
     @Override
     public boolean execute(CommandSender sender, String commandLabel, String[] args) {

@@ -1,24 +1,38 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.util;
+
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.platform.bukkit.BukkitAudiences;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextReplacementConfig;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+
+import org.apache.commons.lang3.StringUtils;
+import org.bukkit.Material;
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
 
 import dev.vankka.mcdiscordreserializer.discord.DiscordSerializer;
 import dev.vankka.mcdiscordreserializer.minecraft.MinecraftSerializer;
@@ -29,22 +43,6 @@ import dev.vankka.simpleast.core.parser.Rule;
 import dev.vankka.simpleast.core.simple.SimpleMarkdownRules;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.DiscordSRVMinecraftRenderer;
-import net.kyori.adventure.audience.Audience;
-import net.kyori.adventure.platform.bukkit.BukkitAudiences;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.TextReplacementConfig;
-import net.kyori.adventure.text.event.ClickEvent;
-import net.kyori.adventure.text.minimessage.MiniMessage;
-import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
-import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import org.apache.commons.lang3.StringUtils;
-import org.bukkit.Material;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
-
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Utility class for sending &amp; editing messages from/for CommandSenders.
@@ -60,7 +58,8 @@ public class MessageUtil {
     /**
      * The pattern for MiniMessage components.
      */
-    public static final Pattern MINIMESSAGE_PATTERN = Pattern.compile("(?!<@)((?<start><)(?<token>[^<>]+(:(?<inner>['\"]?([^'\"](\\\\\\\\['\"])?)+['\"]?))*)(?<end>>))+?");
+    public static final Pattern MINIMESSAGE_PATTERN = Pattern
+        .compile("(?!<@)((?<start><)(?<token>[^<>]+(:(?<inner>['\"]?([^'\"](\\\\\\\\['\"])?)+['\"]?))*)(?<end>>))+?");
 
     /**
      * The minecraft legacy section character.
@@ -74,12 +73,14 @@ public class MessageUtil {
 
     /**
      * Pattern for capturing both ampersand and the legacy section sign color codes.
+     * 
      * @see #LEGACY_SECTION
      */
     public static final Pattern STRIP_PATTERN = Pattern.compile("(?:(?<!<@)&|[§\u007F])(?i)[0-9a-fklmnorx]");
 
     /**
      * Pattern for capturing section sign color codes.
+     * 
      * @see #LEGACY_SECTION
      */
     public static final Pattern STRIP_SECTION_ONLY_PATTERN = Pattern.compile("(?<!<@)§(?i)[0-9a-fklmnorx]");
@@ -93,7 +94,10 @@ public class MessageUtil {
      * Legacy serializer that has URL extracting and hex colors (w/ bungeecord format).
      */
     public static final LegacyComponentSerializer LEGACY_SERIALIZER = LegacyComponentSerializer.builder()
-            .extractUrls().hexColors().useUnusualXRepeatedCharacterHexFormat().build();
+        .extractUrls()
+        .hexColors()
+        .useUnusualXRepeatedCharacterHexFormat()
+        .build();
 
     /**
      * MCDiscordReserializer's serializer for converting markdown from Discord -> Minecraft
@@ -101,7 +105,9 @@ public class MessageUtil {
     public static final MinecraftSerializer MINECRAFT_SERIALIZER;
 
     /**
-     * MinecraftSerializer for {@link #reserializeToMinecraftBasedOnConfig(String)} when Experiment_MCDiscordReserializer_ToMinecraft is false.
+     * MinecraftSerializer for {@link #reserializeToMinecraftBasedOnConfig(String)} when
+     * Experiment_MCDiscordReserializer_ToMinecraft is false.
+     * 
      * @see #MINECRAFT_SERIALIZER
      */
     public static final MinecraftSerializer LIMITED_MINECRAFT_SERIALIZER;
@@ -116,8 +122,8 @@ public class MessageUtil {
         rules.addAll(DiscordMarkdownRules.createMentionRules());
         rules.add(DiscordMarkdownRules.createSpecialTextRule());
 
-        MinecraftSerializerOptions<Component> options = MinecraftSerializerOptions
-                .defaults().addRenderer(new DiscordSRVMinecraftRenderer());
+        MinecraftSerializerOptions<Component> options = MinecraftSerializerOptions.defaults()
+            .addRenderer(new DiscordSRVMinecraftRenderer());
         MinecraftSerializerOptions<String> escapeOptions = MinecraftSerializerOptions.escapeDefaults();
 
         MINECRAFT_SERIALIZER = new MinecraftSerializer(options, escapeOptions);
@@ -125,7 +131,8 @@ public class MessageUtil {
 
         boolean available = false;
         try {
-            Material.valueOf("NETHERITE_PICKAXE").getKey();
+            Material.valueOf("NETHERITE_PICKAXE")
+                .getKey();
             available = true;
         } catch (Throwable ignored) {}
 
@@ -133,14 +140,15 @@ public class MessageUtil {
     }
 
     private static BukkitAudiences getAudiences() {
-        return (BUKKIT_AUDIENCES != null ? BUKKIT_AUDIENCES :
-                (BUKKIT_AUDIENCES = BukkitAudiences.create(DiscordSRV.getPlugin())));
+        return (BUKKIT_AUDIENCES != null ? BUKKIT_AUDIENCES
+            : (BUKKIT_AUDIENCES = BukkitAudiences.create(DiscordSRV.getPlugin())));
     }
 
     private MessageUtil() {}
 
     /**
-     * Determines weather or not to use legacy instead of MiniMessage format, by checking if the message contains a section sign (the legacy character).
+     * Determines weather or not to use legacy instead of MiniMessage format, by checking if the message contains a
+     * section sign (the legacy character).
      *
      * @param plainMessage the message to convert
      * @return true if the message contained a section sign
@@ -162,7 +170,7 @@ public class MessageUtil {
     /**
      * Converts the message to a {@link Component} using legacy or MiniMessage format.
      *
-     * @param message the message to convert
+     * @param message   the message to convert
      * @param useLegacy if legacy formatting should be used (otherwise MiniMessage)
      * @return the converted {@link Component}
      */
@@ -170,24 +178,27 @@ public class MessageUtil {
         if (useLegacy) {
             return LEGACY_SERIALIZER.deserialize(message);
         } else {
-            Component component = MiniMessage.miniMessage().deserialize(message);
+            Component component = MiniMessage.miniMessage()
+                .deserialize(message);
             component = component.replaceText(
-                    TextReplacementConfig.builder()
-                            .match(DEFAULT_URL_PATTERN)
-                            .replacement((url) -> (url).clickEvent(ClickEvent.openUrl(url.content())))
-                            .build()
-            );
+                TextReplacementConfig.builder()
+                    .match(DEFAULT_URL_PATTERN)
+                    .replacement((url) -> (url).clickEvent(ClickEvent.openUrl(url.content())))
+                    .build());
             return component;
         }
     }
 
     /**
      * Converts a given Discord markdown formatted message into a {@link Component} for Minecraft clients.
-     * Depending on the Experiment_MCDiscordReserializer_ToMinecraft config option, this will only process mentions when false.
+     * Depending on the Experiment_MCDiscordReserializer_ToMinecraft config option, this will only process mentions when
+     * false.
+     * 
      * @see #reserializeToMinecraft(String)
      */
     public static Component reserializeToMinecraftBasedOnConfig(String discordMessage) {
-        boolean enabled = DiscordSRV.config().getBoolean("Experiment_MCDiscordReserializer_ToMinecraft");
+        boolean enabled = DiscordSRV.config()
+            .getBoolean("Experiment_MCDiscordReserializer_ToMinecraft");
         if (enabled) {
             return reserializeToMinecraft(discordMessage);
         } else {
@@ -224,7 +235,8 @@ public class MessageUtil {
      * @return the converted MiniMessage
      */
     public static String toMiniMessage(Component component) {
-        return MiniMessage.miniMessage().serialize(component);
+        return MiniMessage.miniMessage()
+            .serialize(component);
     }
 
     /**
@@ -246,7 +258,7 @@ public class MessageUtil {
      * Converts the {@link Component} to a legacy or MiniMessage message.
      *
      * @param component the component to convert
-     * @param isLegacy weather or not to use legacy or MiniMessage
+     * @param isLegacy  weather or not to use legacy or MiniMessage
      * @return the converted legacy or MiniMessage message
      */
     public static String toPlain(Component component, boolean isLegacy) {
@@ -283,7 +295,10 @@ public class MessageUtil {
                 token = token.replace(inner, escapeMiniTokens(inner));
             }
 
-            sb.append("\\").append(start).append(token).append(end);
+            sb.append("\\")
+                .append(start)
+                .append(token)
+                .append(end);
         }
 
         if (plainMessage.length() > lastEnd) {
@@ -294,10 +309,11 @@ public class MessageUtil {
     }
 
     /**
-     * Translates the plain message from legacy section sign format or MiniMessage format to a {@link Component} and sends it to the provided {@link CommandSender}.
+     * Translates the plain message from legacy section sign format or MiniMessage format to a {@link Component} and
+     * sends it to the provided {@link CommandSender}.
      *
      * @param commandSender the command sender to send the component to
-     * @param plainMessage the legacy or section sign format or MiniMessage formatted message
+     * @param plainMessage  the legacy or section sign format or MiniMessage formatted message
      */
     public static void sendMessage(CommandSender commandSender, String plainMessage) {
         sendMessage(Collections.singleton(commandSender), plainMessage);
@@ -306,7 +322,7 @@ public class MessageUtil {
     /**
      * Sends the provided {@link Component} to the provided {@link CommandSender}.
      *
-     * @param commandSender the command sender to send the component to
+     * @param commandSender    the command sender to send the component to
      * @param adventureMessage the message to send
      */
     public static void sendMessage(CommandSender commandSender, Component adventureMessage) {
@@ -314,10 +330,11 @@ public class MessageUtil {
     }
 
     /**
-     * Translates the plain message from legacy section sign format or MiniMessage format to a {@link Component} and sends it to the provided {@link CommandSender}s.
+     * Translates the plain message from legacy section sign format or MiniMessage format to a {@link Component} and
+     * sends it to the provided {@link CommandSender}s.
      *
      * @param commandSenders the command senders to send the component to
-     * @param plainMessage the legacy or section sign format or MiniMessage formatted message
+     * @param plainMessage   the legacy or section sign format or MiniMessage formatted message
      */
     public static void sendMessage(Iterable<? extends CommandSender> commandSenders, String plainMessage) {
         sendMessage(commandSenders, toComponent(plainMessage));
@@ -326,7 +343,7 @@ public class MessageUtil {
     /**
      * Sends the provided {@link Component} to the provided {@link CommandSender}s.
      *
-     * @param commandSenders the command senders to send the component to
+     * @param commandSenders   the command senders to send the component to
      * @param adventureMessage the message to send
      */
     public static void sendMessage(Iterable<? extends CommandSender> commandSenders, Component adventureMessage) {
@@ -334,7 +351,9 @@ public class MessageUtil {
         Set<Audience> degradedAudiences = new HashSet<>();
         commandSenders.forEach(sender -> {
             Audience audience = getAudiences().sender(sender);
-            if (sender instanceof Player && DiscordSRV.getPlugin().getIncompatibleClientManager().isIncompatible((Player) sender)) {
+            if (sender instanceof Player && DiscordSRV.getPlugin()
+                .getIncompatibleClientManager()
+                .isIncompatible((Player) sender)) {
                 degradedAudiences.add(audience);
             } else {
                 audiences.add(audience);
@@ -343,17 +362,20 @@ public class MessageUtil {
 
         try {
             if (!audiences.isEmpty()) {
-                Audience.audience(audiences).sendMessage(adventureMessage);
+                Audience.audience(audiences)
+                    .sendMessage(adventureMessage);
             }
 
             if (!degradedAudiences.isEmpty()) {
                 // Put it through legacy serializer for degraded audiences
                 Component degraded = LEGACY_SERIALIZER.deserialize(LEGACY_SERIALIZER.serialize(adventureMessage));
-                Audience.audience(degradedAudiences).sendMessage(degraded);
+                Audience.audience(degradedAudiences)
+                    .sendMessage(degraded);
             }
         } catch (NoClassDefFoundError e) {
             // might happen with 1.7
-            if (e.getMessage().equals("org/bukkit/command/ProxiedCommandSender")) {
+            if (e.getMessage()
+                .equals("org/bukkit/command/ProxiedCommandSender")) {
                 String legacy = toLegacy(adventureMessage);
                 commandSenders.forEach(sender -> sender.sendMessage(legacy));
                 DiscordSRV.debug(e);
@@ -418,7 +440,8 @@ public class MessageUtil {
             return "";
         }
 
-        return STRIP_PATTERN.matcher(text).replaceAll("");
+        return STRIP_PATTERN.matcher(text)
+            .replaceAll("");
     }
 
     /**
@@ -429,7 +452,8 @@ public class MessageUtil {
      * @see #STRIP_SECTION_ONLY_PATTERN
      */
     public static String stripLegacySectionOnly(String text) {
-        return STRIP_SECTION_ONLY_PATTERN.matcher(text).replaceAll("");
+        return STRIP_SECTION_ONLY_PATTERN.matcher(text)
+            .replaceAll("");
     }
 
     /**

@@ -1,7 +1,10 @@
 package org.bukkit;
 
 public enum WarningState {
-    ON, OFF, DEFAULT;
+
+    ON,
+    OFF,
+    DEFAULT;
 
     public static WarningState get() {
         return DEFAULT;

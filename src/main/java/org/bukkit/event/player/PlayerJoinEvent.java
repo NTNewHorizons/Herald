@@ -3,6 +3,7 @@ package org.bukkit.event.player;
 import org.bukkit.entity.Player;
 
 public class PlayerJoinEvent extends PlayerEvent {
+
     private String joinMessage;
 
     public PlayerJoinEvent(Player player, String joinMessage) {

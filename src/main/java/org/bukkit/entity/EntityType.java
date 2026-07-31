@@ -1,6 +1,7 @@
 package org.bukkit.entity;
 
 public enum EntityType {
+
     PLAYER("PLAYER", Player.class, 0),
     WITHER("WITHER", Wither.class, 0);
 

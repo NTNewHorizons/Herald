@@ -1,7 +1,8 @@
 package github.scarsz.discordsrv.hooks;
 
-import github.scarsz.discordsrv.util.PluginUtil;
 import org.bukkit.plugin.Plugin;
+
+import github.scarsz.discordsrv.util.PluginUtil;
 
 public class VaultHook implements PluginHook {
 

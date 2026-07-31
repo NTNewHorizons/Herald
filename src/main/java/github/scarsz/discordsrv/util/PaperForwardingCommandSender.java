@@ -1,6 +1,5 @@
 package github.scarsz.discordsrv.util;
 
-import github.scarsz.discordsrv.DiscordSRV;
 import org.bukkit.command.CommandSender;
 
 public class PaperForwardingCommandSender {

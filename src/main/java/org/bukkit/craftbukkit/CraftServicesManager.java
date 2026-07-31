@@ -1,12 +1,12 @@
 package org.bukkit.craftbukkit;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.ServicesManager;
-
-import java.util.HashMap;
-import java.util.Map;
 
 public class CraftServicesManager implements ServicesManager {
 

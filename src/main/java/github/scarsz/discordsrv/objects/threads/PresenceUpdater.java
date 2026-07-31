@@ -1,24 +1,31 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.objects.threads;
+
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+
+import net.dv8tion.jda.api.OnlineStatus;
+import net.dv8tion.jda.api.entities.Activity;
+
+import org.apache.commons.lang3.StringUtils;
 
 import alexh.weak.Dynamic;
 import github.scarsz.discordsrv.Debug;
@@ -27,15 +34,6 @@ import github.scarsz.discordsrv.util.DiscordUtil;
 import github.scarsz.discordsrv.util.MessageUtil;
 import github.scarsz.discordsrv.util.PlaceholderUtil;
 import github.scarsz.discordsrv.util.PlayerUtil;
-import net.dv8tion.jda.api.OnlineStatus;
-import net.dv8tion.jda.api.entities.Activity;
-import org.apache.commons.lang3.StringUtils;
-
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 public class PresenceUpdater extends Thread {
 
@@ -50,16 +48,20 @@ public class PresenceUpdater extends Thread {
     @Override
     public void run() {
         while (true) {
-            int rate = DiscordSRV.config().getInt("StatusUpdateRateInMinutes");
+            int rate = DiscordSRV.config()
+                .getInt("StatusUpdateRateInMinutes");
             if (rate < 1) rate = 1;
 
             if (DiscordUtil.getJda() != null) {
-                Dynamic dynamic = DiscordSRV.config().dget("DiscordGameStatus");
+                Dynamic dynamic = DiscordSRV.config()
+                    .dget("DiscordGameStatus");
                 List<String> statuses = new LinkedList<>();
                 if (dynamic.isList()) {
                     statuses.addAll(dynamic.asList());
                 } else {
-                    statuses.add(dynamic.convert().intoString());
+                    statuses.add(
+                        dynamic.convert()
+                            .intoString());
                 }
 
                 String status;
@@ -74,12 +76,19 @@ public class PresenceUpdater extends Thread {
                 }
 
                 if (status != null) {
-                    status = status.replace("%online%", String.valueOf(PlayerUtil.getOnlinePlayers(true).size()));
+                    status = status.replace(
+                        "%online%",
+                        String.valueOf(
+                            PlayerUtil.getOnlinePlayers(true)
+                                .size()));
                     status = PlaceholderUtil.replacePlaceholders(status);
                     status = MessageUtil.strip(status); // remove color codes
                 }
 
-                String onlineStatusString = DiscordSRV.config().getString("DiscordOnlineStatus").toUpperCase(Locale.ROOT).trim();
+                String onlineStatusString = DiscordSRV.config()
+                    .getString("DiscordOnlineStatus")
+                    .toUpperCase(Locale.ROOT)
+                    .trim();
 
                 OnlineStatus onlineStatus = OnlineStatus.fromKey(onlineStatusString);
                 if (onlineStatus == OnlineStatus.UNKNOWN) onlineStatus = OnlineStatus.ONLINE;
@@ -90,25 +99,47 @@ public class PresenceUpdater extends Thread {
 
                 if (!same) {
                     if (StringUtils.isNotBlank(status)) {
-                        DiscordSRV.debug(Debug.PRESENCE, "Setting presence to \"" + status + "\"" + " and online status to \"" + onlineStatus.name() + "\"");
+                        DiscordSRV.debug(
+                            Debug.PRESENCE,
+                            "Setting presence to \"" + status
+                                + "\""
+                                + " and online status to \""
+                                + onlineStatus.name()
+                                + "\"");
 
                         if (StringUtils.startsWithIgnoreCase(status, "watching")) {
-                            String removed = status.substring("watching".length()).trim();
-                            DiscordUtil.getJda().getPresence().setPresence(onlineStatus, Activity.watching(removed), false);
+                            String removed = status.substring("watching".length())
+                                .trim();
+                            DiscordUtil.getJda()
+                                .getPresence()
+                                .setPresence(onlineStatus, Activity.watching(removed), false);
                         } else if (StringUtils.startsWithIgnoreCase(status, "listening to")) {
-                            String removed = status.substring("listening to".length()).trim();
-                            DiscordUtil.getJda().getPresence().setPresence(onlineStatus, Activity.listening(removed), false);
+                            String removed = status.substring("listening to".length())
+                                .trim();
+                            DiscordUtil.getJda()
+                                .getPresence()
+                                .setPresence(onlineStatus, Activity.listening(removed), false);
                         } else if (StringUtils.startsWithIgnoreCase(status, "playing")) {
-                            String removed = status.substring("playing".length()).trim();
-                            DiscordUtil.getJda().getPresence().setPresence(onlineStatus, Activity.playing(removed), false);
+                            String removed = status.substring("playing".length())
+                                .trim();
+                            DiscordUtil.getJda()
+                                .getPresence()
+                                .setPresence(onlineStatus, Activity.playing(removed), false);
                         } else if (StringUtils.startsWithIgnoreCase(status, "competing")) {
-                            String removed = status.substring("competing".length()).trim();
-                            DiscordUtil.getJda().getPresence().setPresence(onlineStatus, Activity.competing(removed), false);
+                            String removed = status.substring("competing".length())
+                                .trim();
+                            DiscordUtil.getJda()
+                                .getPresence()
+                                .setPresence(onlineStatus, Activity.competing(removed), false);
                         } else {
-                            DiscordUtil.getJda().getPresence().setPresence(onlineStatus, Activity.customStatus(status), false);
+                            DiscordUtil.getJda()
+                                .getPresence()
+                                .setPresence(onlineStatus, Activity.customStatus(status), false);
                         }
                     } else {
-                        DiscordUtil.getJda().getPresence().setPresence(onlineStatus, null, false);
+                        DiscordUtil.getJda()
+                            .getPresence()
+                            .setPresence(onlineStatus, null, false);
                         DiscordSRV.debug(Debug.PRESENCE, "Cleared presence status");
                     }
                 }

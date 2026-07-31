@@ -1,6 +1,7 @@
 package org.bukkit.plugin;
 
 public class RegisteredServiceProvider<T> {
+
     private final Class<T> service;
     private final T provider;
     private final ServicePriority priority;

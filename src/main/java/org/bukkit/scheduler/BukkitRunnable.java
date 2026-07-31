@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.plugin.Plugin;
 
 public abstract class BukkitRunnable implements Runnable {
+
     private int taskId = -1;
 
     @Override
@@ -11,7 +12,8 @@ public abstract class BukkitRunnable implements Runnable {
 
     public synchronized void cancel() {
         if (taskId != -1) {
-            Bukkit.getScheduler().cancelTask(taskId);
+            Bukkit.getScheduler()
+                .cancelTask(taskId);
         }
         taskId = -1;
     }

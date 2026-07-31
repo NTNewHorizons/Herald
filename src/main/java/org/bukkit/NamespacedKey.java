@@ -1,6 +1,7 @@
 package org.bukkit;
 
 public class NamespacedKey {
+
     private final String namespace;
     private final String key;
 

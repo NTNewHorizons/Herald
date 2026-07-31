@@ -1,7 +1,5 @@
 package github.scarsz.discordsrv.hooks;
 
-import github.scarsz.discordsrv.util.PluginUtil;
-
 public class SkriptHook {
 
     public static boolean isEnabled() {

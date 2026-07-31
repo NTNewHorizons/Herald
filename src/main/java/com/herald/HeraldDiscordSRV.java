@@ -1,17 +1,13 @@
 package com.herald;
 
-import cpw.mods.fml.common.FMLCommonHandler;
-import cpw.mods.fml.common.event.FMLInitializationEvent;
-import cpw.mods.fml.common.event.FMLPostInitializationEvent;
-import cpw.mods.fml.common.event.FMLServerStartingEvent;
-import cpw.mods.fml.common.eventhandler.SubscribeEvent;
-import cpw.mods.fml.common.gameevent.PlayerEvent;
-import github.scarsz.discordsrv.DiscordSRV;
+import java.io.File;
+
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.world.WorldEvent;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bukkit.Bukkit;
@@ -23,7 +19,13 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
+import cpw.mods.fml.common.FMLCommonHandler;
+import cpw.mods.fml.common.event.FMLInitializationEvent;
+import cpw.mods.fml.common.event.FMLPostInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.PlayerEvent;
+import github.scarsz.discordsrv.DiscordSRV;
 
 public class HeraldDiscordSRV {
 
@@ -49,10 +51,9 @@ public class HeraldDiscordSRV {
         log.info("Initializing Herald DiscordSRV Bridge");
 
         File dataFolder = new File(
-                MinecraftServer.getServer() != null
-                        ? MinecraftServer.getServer().getFile("config/herald").getAbsolutePath()
-                        : "config/herald"
-        );
+            MinecraftServer.getServer() != null ? MinecraftServer.getServer()
+                .getFile("config/herald")
+                .getAbsolutePath() : "config/herald");
         dataFolder.mkdirs();
 
         this.craftServer = new CraftServer();
@@ -71,7 +72,9 @@ public class HeraldDiscordSRV {
         if (discordSRV != null) {
             try {
                 MinecraftForge.EVENT_BUS.register(this);
-                FMLCommonHandler.instance().bus().register(this);
+                FMLCommonHandler.instance()
+                    .bus()
+                    .register(this);
                 discordSRV.onEnable();
                 this.enabled = discordSRV.isEnabled();
                 log.info("Herald DiscordSRV initialized: enabled=" + enabled);
@@ -100,13 +103,8 @@ public class HeraldDiscordSRV {
         if (craftPlayer == null) return;
 
         AsyncPlayerChatEvent chatEvent = new AsyncPlayerChatEvent(craftPlayer, event.message);
-        Bukkit.getPluginManager().callEvent(chatEvent);
-
-        if (!chatEvent.isCancelled()) {
-            DiscordSRV.getPlugin().processChatMessage(
-                    craftPlayer, chatEvent.getMessage(), "global", false, chatEvent
-            );
-        }
+        Bukkit.getPluginManager()
+            .callEvent(chatEvent);
     }
 
     @SubscribeEvent
@@ -118,7 +116,8 @@ public class HeraldDiscordSRV {
         if (craftPlayer == null) return;
 
         PlayerJoinEvent joinEvent = new PlayerJoinEvent(craftPlayer, craftPlayer.getName() + " joined the game");
-        Bukkit.getPluginManager().callEvent(joinEvent);
+        Bukkit.getPluginManager()
+            .callEvent(joinEvent);
     }
 
     @SubscribeEvent
@@ -130,7 +129,8 @@ public class HeraldDiscordSRV {
         if (craftPlayer == null) return;
 
         PlayerQuitEvent quitEvent = new PlayerQuitEvent(craftPlayer, craftPlayer.getName() + " left the game");
-        Bukkit.getPluginManager().callEvent(quitEvent);
+        Bukkit.getPluginManager()
+            .callEvent(quitEvent);
     }
 
     @SubscribeEvent

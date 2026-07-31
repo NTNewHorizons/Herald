@@ -1,6 +1,7 @@
 package org.bukkit;
 
 public enum Material {
+
     AIR,
     STONE,
     GRASS,

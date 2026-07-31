@@ -1,12 +1,12 @@
 package github.scarsz.discordsrv.hooks;
 
-import github.scarsz.discordsrv.util.PluginUtil;
 import org.bukkit.plugin.Plugin;
+
+import github.scarsz.discordsrv.util.PluginUtil;
 
 public class DynmapHook implements PluginHook {
 
-    public void broadcastMessageToDynmap(String name, String message) {
-    }
+    public void broadcastMessageToDynmap(String name, String message) {}
 
     @Override
     public Plugin getPlugin() {

@@ -1,50 +1,51 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.util;
-
-import github.scarsz.configuralize.DynamicConfig;
-import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.objects.MessageFormat;
-import net.dv8tion.jda.api.entities.MessageEmbed;
-import net.dv8tion.jda.api.entities.Role;
-import org.apache.commons.lang3.StringUtils;
-import org.bukkit.ChatColor;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+import net.dv8tion.jda.api.entities.MessageEmbed;
+import net.dv8tion.jda.api.entities.Role;
+
+import org.apache.commons.lang3.StringUtils;
+import org.bukkit.ChatColor;
+
+import github.scarsz.configuralize.DynamicConfig;
+import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.objects.MessageFormat;
+
 public class MessageFormatResolver {
 
     public static String getMessageFormat(List<Role> selectedRoles, String channel) {
-        LangUtil.Message format = !selectedRoles.isEmpty() ? LangUtil.Message.CHAT_TO_MINECRAFT : LangUtil.Message.CHAT_TO_MINECRAFT_NO_ROLE;
+        LangUtil.Message format = !selectedRoles.isEmpty() ? LangUtil.Message.CHAT_TO_MINECRAFT
+            : LangUtil.Message.CHAT_TO_MINECRAFT_NO_ROLE;
 
-        return DiscordSRV.config().getOptionalString(format.getKeyName() + "_" + channel)
-                .map(s -> ChatColor.translateAlternateColorCodes('&', s))
-                .orElseGet(format::toString);
+        return DiscordSRV.config()
+            .getOptionalString(format.getKeyName() + "_" + channel)
+            .map(s -> ChatColor.translateAlternateColorCodes('&', s))
+            .orElseGet(format::toString);
     }
 
     public static MessageFormat getMessageFromConfiguration(DynamicConfig config, String key) {
-        if (!config.getOptional(key).isPresent()) {
+        if (!config.getOptional(key)
+            .isPresent()) {
             return null;
         }
 
@@ -55,42 +56,53 @@ public class MessageFormatResolver {
 
         MessageFormat messageFormat = new MessageFormat();
 
-        if (config.getOptional(key + ".Embed").isPresent() && config.getOptionalBoolean(key + ".Embed.Enabled").orElse(true)) {
+        if (config.getOptional(key + ".Embed")
+            .isPresent()
+            && config.getOptionalBoolean(key + ".Embed.Enabled")
+                .orElse(true)) {
             Optional<String> hexColor = config.getOptionalString(key + ".Embed.Color");
             if (hexColor.isPresent()) {
-                String hex = hexColor.get().trim();
+                String hex = hexColor.get()
+                    .trim();
                 if (!hex.startsWith("#")) hex = "#" + hex;
                 if (hex.length() == 7) {
-                    messageFormat.setColorRaw(
-                            Integer.valueOf(hex.substring(1, 7), 16)
-                    );
+                    messageFormat.setColorRaw(Integer.valueOf(hex.substring(1, 7), 16));
                 } else {
                     DiscordSRV.debug("Invalid color hex: " + hex + " (in " + key + ".Embed.Color)");
                 }
             } else {
-                config.getOptionalInt(key + ".Embed.Color").ifPresent(messageFormat::setColorRaw);
+                config.getOptionalInt(key + ".Embed.Color")
+                    .ifPresent(messageFormat::setColorRaw);
             }
 
-            if (config.getOptional(key + ".Embed.Author").isPresent()) {
+            if (config.getOptional(key + ".Embed.Author")
+                .isPresent()) {
                 config.getOptionalString(key + ".Embed.Author.Name")
-                        .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setAuthorName);
+                    .filter(StringUtils::isNotBlank)
+                    .ifPresent(messageFormat::setAuthorName);
                 config.getOptionalString(key + ".Embed.Author.Url")
-                        .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setAuthorUrl);
+                    .filter(StringUtils::isNotBlank)
+                    .ifPresent(messageFormat::setAuthorUrl);
                 config.getOptionalString(key + ".Embed.Author.ImageUrl")
-                        .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setAuthorImageUrl);
+                    .filter(StringUtils::isNotBlank)
+                    .ifPresent(messageFormat::setAuthorImageUrl);
             }
 
             config.getOptionalString(key + ".Embed.ThumbnailUrl")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setThumbnailUrl);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setThumbnailUrl);
 
             config.getOptionalString(key + ".Embed.Title.Text")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setTitle);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setTitle);
 
             config.getOptionalString(key + ".Embed.Title.Url")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setTitleUrl);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setTitleUrl);
 
             config.getOptionalString(key + ".Embed.Description")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setDescription);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setDescription);
 
             Optional<List<String>> fieldsOptional = config.getOptionalStringList(key + ".Embed.Fields");
             if (fieldsOptional.isPresent()) {
@@ -113,13 +125,17 @@ public class MessageFormatResolver {
             }
 
             config.getOptionalString(key + ".Embed.ImageUrl")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setImageUrl);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setImageUrl);
 
-            if (config.getOptional(key + ".Embed.Footer").isPresent()) {
+            if (config.getOptional(key + ".Embed.Footer")
+                .isPresent()) {
                 config.getOptionalString(key + ".Embed.Footer.Text")
-                        .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setFooterText);
+                    .filter(StringUtils::isNotBlank)
+                    .ifPresent(messageFormat::setFooterText);
                 config.getOptionalString(key + ".Embed.Footer.IconUrl")
-                        .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setFooterIconUrl);
+                    .filter(StringUtils::isNotBlank)
+                    .ifPresent(messageFormat::setFooterIconUrl);
             }
 
             Optional<Boolean> timestampOptional = config.getOptionalBoolean(key + ".Embed.Timestamp");
@@ -133,14 +149,19 @@ public class MessageFormatResolver {
             }
         }
 
-        if (config.getOptional(key + ".Webhook").isPresent()
-                && config.getOptionalBoolean(key + ".Webhook.Enabled").orElse(config.getOptionalBoolean(key + ".Webhook.Enable").orElse(false))
-        ) {
+        if (config.getOptional(key + ".Webhook")
+            .isPresent()
+            && config.getOptionalBoolean(key + ".Webhook.Enabled")
+                .orElse(
+                    config.getOptionalBoolean(key + ".Webhook.Enable")
+                        .orElse(false))) {
             messageFormat.setUseWebhooks(true);
             config.getOptionalString(key + ".Webhook.AvatarUrl")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setWebhookAvatarUrl);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setWebhookAvatarUrl);
             config.getOptionalString(key + ".Webhook.Name")
-                    .filter(StringUtils::isNotBlank).ifPresent(messageFormat::setWebhookName);
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(messageFormat::setWebhookName);
         }
 
         Optional<String> content = config.getOptionalString(key + ".Content");

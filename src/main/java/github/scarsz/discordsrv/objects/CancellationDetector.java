@@ -1,34 +1,30 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.objects;
 
-import org.bukkit.event.*;
-import org.bukkit.plugin.Plugin;
-import org.bukkit.plugin.RegisteredListener;
-import org.jetbrains.annotations.NotNull;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.function.BiConsumer;
+
+import org.bukkit.event.*;
+import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.RegisteredListener;
+import org.jetbrains.annotations.NotNull;
 
 public class CancellationDetector<E extends Cancellable> {
 
@@ -39,7 +35,8 @@ public class CancellationDetector<E extends Cancellable> {
     private final EnumMap<EventPriority, CancellationDetectorList<E>> proxies = new EnumMap<>(EventPriority.class);
     private EnumMap<EventPriority, ArrayList<RegisteredListener>> originalMap;
 
-    public CancellationDetector(Plugin plugin, @NotNull Class<E> eventClass, BiConsumer<RegisteredListener, E> cancelListener) {
+    public CancellationDetector(Plugin plugin, @NotNull Class<E> eventClass,
+        BiConsumer<RegisteredListener, E> cancelListener) {
         this.plugin = plugin;
         this.eventClass = eventClass;
         this.cancelListener = cancelListener;
@@ -55,14 +52,17 @@ public class CancellationDetector<E extends Cancellable> {
             for (Map.Entry<EventPriority, ArrayList<RegisteredListener>> entry : originalMap.entrySet()) {
                 ArrayList<RegisteredListener> list = entry.getValue();
                 list.clear();
-                list.addAll(proxies.get(entry.getKey()).getRaw());
+                list.addAll(
+                    proxies.get(entry.getKey())
+                        .getRaw());
             }
 
             HandlerList handlerList = getHandlerList();
             setSlots(handlerList, originalMap);
 
             // Reset the handlers so it gets them again
-            Field handlers = handlerList.getClass().getDeclaredField("handlers");
+            Field handlers = handlerList.getClass()
+                .getDeclaredField("handlers");
             handlers.setAccessible(true);
             handlers.set(handlerList, null);
         } catch (Exception e) {
@@ -189,17 +189,13 @@ public class CancellationDetector<E extends Cancellable> {
         private final RegisteredListener listener;
         private final CancellationDetector<E> detector;
 
-        public CancellationDetectingListener(
-                RegisteredListener listener,
-                CancellationDetector<E> detector
-        ) {
+        public CancellationDetectingListener(RegisteredListener listener, CancellationDetector<E> detector) {
             super(
-                    new Listener() {},
-                    (l, e) -> {},
-                    listener != null ? listener.getPriority() : EventPriority.LOWEST,
-                    detector.plugin,
-                    false
-            );
+                new Listener() {},
+                (l, e) -> {},
+                listener != null ? listener.getPriority() : EventPriority.LOWEST,
+                detector.plugin,
+                false);
             this.listener = listener;
             this.detector = detector;
         }

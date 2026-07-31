@@ -1,10 +1,12 @@
 package org.bukkit.permissions;
 
-import org.bukkit.plugin.Plugin;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.bukkit.plugin.Plugin;
+
 public class PermissionAttachment {
+
     private final Plugin plugin;
     private final Permissible permissible;
     private final Map<String, Boolean> permissions = new ConcurrentHashMap<>();

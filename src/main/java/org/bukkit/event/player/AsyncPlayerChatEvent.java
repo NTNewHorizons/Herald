@@ -1,9 +1,11 @@
 package org.bukkit.event.player;
 
 import java.util.Set;
+
 import org.bukkit.entity.Player;
 
 public class AsyncPlayerChatEvent extends PlayerEvent implements org.bukkit.event.Cancellable {
+
     private String message;
     private boolean cancelled;
 

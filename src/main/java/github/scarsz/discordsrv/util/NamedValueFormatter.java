@@ -1,27 +1,20 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.util;
-
-import github.scarsz.discordsrv.DiscordSRV;
-import org.bukkit.Bukkit;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -30,14 +23,33 @@ import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.bukkit.Bukkit;
+
+import github.scarsz.discordsrv.DiscordSRV;
+
 /**
- * <p>Utility for replacing placeholders in Strings. You can provide the replacements directly as map entries or you can
- * provide a {@link java.util.function.Function Function&lt;String, String>} that will map keys to their values.</p>
+ * <p>
+ * Utility for replacing placeholders in Strings. You can provide the replacements directly as map entries or you can
+ * provide a {@link java.util.function.Function Function&lt;String, String>} that will map keys to their values.
+ * </p>
  *
- * <p>Examples:
+ * <p>
+ * Examples:
  * <ol>
- *     <li><pre>NamedValueFormatter.format("input {string}", key -> "value") = "input value"</pre></li>
- *     <li><pre>NamedValueFormatter.format("input {string}", Map.of("string", "value")) = "input value"</pre></li>
+ * <li>
+ * 
+ * <pre>
+ * NamedValueFormatter.format("input {string}", key -> "value") = "input value"
+ * </pre>
+ * 
+ * </li>
+ * <li>
+ * 
+ * <pre>
+ * NamedValueFormatter.format("input {string}", Map.of("string", "value")) = "input value"
+ * </pre>
+ * 
+ * </li>
  * </ol>
  * </p>
  */
@@ -61,7 +73,7 @@ public abstract class NamedValueFormatter {
     /**
      * Replace placeholders in the given format String with values provided by the given Function
      *
-     * @param format the format to process
+     * @param format   the format to process
      * @param replacer the function that should map placeholder keys to their values
      * @return the formatted String
      */
@@ -73,28 +85,30 @@ public abstract class NamedValueFormatter {
      * Replace expressions in the given format String with the evaluated results
      *
      * @param format the format to process
-     * @param root the root object
+     * @param root   the root object
      * @return the formatted String
      */
     public static String formatExpressions(String format, Object root) {
-        return format(format, EXPRESSION_PATTERN, expression -> new SpELExpressionBuilder(expression)
-                .withPluginVariables()
+        return format(
+            format,
+            EXPRESSION_PATTERN,
+            expression -> new SpELExpressionBuilder(expression).withPluginVariables()
                 .withVariable("server", Bukkit.getServer())
                 .withVariable("discordsrv", DiscordSRV.getPlugin())
                 .withVariable("jda", DiscordUtil.getJda())
-                .evaluate(root)
-        );
+                .evaluate(root));
     }
 
     public static String formatExpressions(String format, Object root, Map<String, Object> variables) {
-        return format(format, EXPRESSION_PATTERN, expression -> new SpELExpressionBuilder(expression)
-                .withPluginVariables()
+        return format(
+            format,
+            EXPRESSION_PATTERN,
+            expression -> new SpELExpressionBuilder(expression).withPluginVariables()
                 .withVariable("server", Bukkit.getServer())
                 .withVariable("discordsrv", DiscordSRV.getPlugin())
                 .withVariable("jda", DiscordUtil.getJda())
                 .withVariables(variables)
-                .evaluate(root)
-        );
+                .evaluate(root));
     }
 
     /**

@@ -2,10 +2,12 @@ package org.bukkit.event.player;
 
 import java.net.InetAddress;
 import java.util.UUID;
+
 import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 
 public class AsyncPlayerPreLoginEvent extends Event {
+
     private static final HandlerList handlers = new HandlerList();
     private final String name;
     private final UUID uniqueId;
@@ -14,6 +16,7 @@ public class AsyncPlayerPreLoginEvent extends Event {
     private final InetAddress address;
 
     public enum Result {
+
         ALLOWED,
         KICK_FULL,
         KICK_BANNED,

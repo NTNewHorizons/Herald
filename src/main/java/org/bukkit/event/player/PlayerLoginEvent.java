@@ -1,10 +1,12 @@
 package org.bukkit.event.player;
 
 import java.net.InetAddress;
+
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 
 public class PlayerLoginEvent extends PlayerEvent {
+
     private static final HandlerList handlers = new HandlerList();
     private Result result = Result.ALLOWED;
     private String kickMessage = "";

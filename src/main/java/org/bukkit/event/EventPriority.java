@@ -1,6 +1,7 @@
 package org.bukkit.event;
 
 public enum EventPriority {
+
     LOWEST(0),
     LOW(1),
     NORMAL(2),

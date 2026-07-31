@@ -1,12 +1,14 @@
 package org.bukkit.permissions;
 
 public class PermissionAttachmentInfo {
+
     private final Permissible permissible;
     private final String permission;
     private final PermissionAttachment attachment;
     private final boolean value;
 
-    public PermissionAttachmentInfo(Permissible permissible, String permission, PermissionAttachment attachment, boolean value) {
+    public PermissionAttachmentInfo(Permissible permissible, String permission, PermissionAttachment attachment,
+        boolean value) {
         this.permissible = permissible;
         this.permission = permission;
         this.attachment = attachment;

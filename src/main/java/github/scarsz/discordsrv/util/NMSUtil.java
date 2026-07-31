@@ -1,30 +1,21 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.util;
 
-import org.apache.commons.codec.binary.Base64;
-import org.bukkit.Bukkit;
-import github.scarsz.discordsrv.Debug;
-import github.scarsz.discordsrv.DiscordSRV;
-import org.bukkit.entity.Player;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -33,6 +24,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.apache.commons.codec.binary.Base64;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+import github.scarsz.discordsrv.Debug;
+import github.scarsz.discordsrv.DiscordSRV;
 
 public class NMSUtil {
 
@@ -56,14 +54,21 @@ public class NMSUtil {
     protected static Field field_GameProfileProperty_value;
 
     static {
-        String className = Bukkit.getServer().getClass().getName();
+        String className = Bukkit.getServer()
+            .getClass()
+            .getName();
         String[] packages = className.split("\\.");
         if (packages.length == 5) {
             versionPrefix = packages[3] + ".";
         }
 
         try {
-            class_EntityPlayer = fixBukkitClass("net.minecraft.server.EntityPlayer", "net.minecraft.server.level.EntityPlayer", "net.minecraft.server.level.ServerPlayer");
+            class_EntityPlayer = fixBukkitClass(
+                "net.minecraft.server.EntityPlayer",
+                "net.minecraft.entity.player.EntityPlayerMP",
+                "net.minecraft.entity.player.EntityPlayer",
+                "net.minecraft.server.level.EntityPlayer",
+                "net.minecraft.server.level.ServerPlayer");
             try {
                 method_EntityPlayer_getGameProfile = class_EntityPlayer.getMethod("getProfile");
             } catch (NoSuchMethodException e) {
@@ -71,8 +76,12 @@ public class NMSUtil {
                     method_EntityPlayer_getGameProfile = class_EntityPlayer.getMethod("getGameProfile");
                 } catch (NoSuchMethodException e2) {
                     method_EntityPlayer_getGameProfile = Arrays.stream(class_EntityPlayer.getMethods())
-                            .filter(method -> method.getReturnType().getSimpleName().equals("GameProfile"))
-                            .findFirst().orElseThrow(() -> new RuntimeException("Couldn't find the GameProfile method"));
+                        .filter(
+                            method -> method.getReturnType()
+                                .getSimpleName()
+                                .equals("GameProfile"))
+                        .findFirst()
+                        .orElseThrow(() -> new RuntimeException("Couldn't find the GameProfile method"));
                 }
             }
 
@@ -102,7 +111,8 @@ public class NMSUtil {
 
             field_GameProfileProperty_value = class_GameProfileProperty.getDeclaredField("value");
             field_GameProfileProperty_value.setAccessible(true);
-            field_PropertyMap_properties = method_GameProfile_getProperties.getReturnType().getDeclaredField("properties");
+            field_PropertyMap_properties = method_GameProfile_getProperties.getReturnType()
+                .getDeclaredField("properties");
             field_PropertyMap_properties.setAccessible(true);
         } catch (Throwable e) {
             DiscordSRV.debug(Debug.UNCATEGORIZED, "Failed to generate NMS classes, methods, and fields.");
@@ -114,7 +124,8 @@ public class NMSUtil {
     public static Class<?> getClass(String className) {
         Class<?> result = null;
         try {
-            result = NMSUtil.class.getClassLoader().loadClass(className);
+            result = NMSUtil.class.getClassLoader()
+                .loadClass(className);
         } catch (Exception ignored) {}
         return result;
     }
@@ -127,7 +138,8 @@ public class NMSUtil {
         return result;
     }
 
-    public static Class<?> fixBukkitClass(String className, String... alternateClassNames) throws ClassNotFoundException {
+    public static Class<?> fixBukkitClass(String className, String... alternateClassNames)
+        throws ClassNotFoundException {
         List<String> classNames = new ArrayList<>();
         classNames.add(className);
         classNames.addAll(Arrays.asList(alternateClassNames));
@@ -135,7 +147,8 @@ public class NMSUtil {
         for (String name : classNames) {
             try {
                 // Try without prefix, Spigot 1.17
-                return NMSUtil.class.getClassLoader().loadClass(name);
+                return NMSUtil.class.getClassLoader()
+                    .loadClass(name);
             } catch (ClassNotFoundException ignored) {}
 
             if (!versionPrefix.isEmpty()) {
@@ -144,7 +157,8 @@ public class NMSUtil {
             }
 
             try {
-                return NMSUtil.class.getClassLoader().loadClass(name);
+                return NMSUtil.class.getClassLoader()
+                    .loadClass(name);
             } catch (ClassNotFoundException ignored) {}
         }
         throw new ClassNotFoundException("Could not find " + className);
@@ -180,10 +194,10 @@ public class NMSUtil {
 
         try {
             Object multi = NMSUtil.field_PropertyMap_properties.get(propertyMap);
-            //noinspection rawtypes
+            // noinspection rawtypes
             Iterator it = ((Iterable) multi.getClass()
-                    .getMethod("get", Object.class)
-                    .invoke(multi, "textures")).iterator();
+                .getMethod("get", Object.class)
+                .invoke(multi, "textures")).iterator();
             if (it.hasNext()) {
                 return it.next();
             }
@@ -199,7 +213,7 @@ public class NMSUtil {
         try {
             Object profile = getGameProfileOrResolvableProfile(player);
             if (profile == null) return null;
-            if (class_ResolvableProfile.isInstance(profile)) {
+            if (class_ResolvableProfile != null && class_ResolvableProfile.isInstance(profile)) {
                 profile = method_ResolvableProfile_partialProfile.invoke(profile);
             }
             Object propertyMap = method_GameProfile_getProperties.invoke(profile);

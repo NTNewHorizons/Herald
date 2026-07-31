@@ -3,6 +3,7 @@ package org.bukkit.permissions;
 import java.util.Set;
 
 public class Permission {
+
     private final String name;
     private final String description;
     private final PermissionDefault defaultValue;

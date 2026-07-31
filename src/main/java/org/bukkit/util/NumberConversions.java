@@ -1,6 +1,7 @@
 package org.bukkit.util;
 
 public final class NumberConversions {
+
     public static int toInt(Object object) {
         if (object instanceof Number) {
             return ((Number) object).intValue();

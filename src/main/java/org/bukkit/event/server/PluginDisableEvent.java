@@ -5,6 +5,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.Plugin;
 
 public class PluginDisableEvent extends Event {
+
     private static final HandlerList handlers = new HandlerList();
     private final Plugin plugin;
 

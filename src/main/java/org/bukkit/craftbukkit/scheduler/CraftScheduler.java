@@ -6,13 +6,14 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
-import net.minecraft.server.MinecraftServer;
+
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitScheduler;
 import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.scheduler.BukkitWorker;
 
 public class CraftScheduler implements BukkitScheduler {
+
     private final AtomicInteger taskIdCounter = new AtomicInteger(0);
     private final List<CraftTask> tasks = new CopyOnWriteArrayList<>();
 
@@ -73,7 +74,12 @@ public class CraftScheduler implements BukkitScheduler {
     @Override
     public void runTaskLater(Plugin plugin, Runnable task, long delay) {
         new Thread(() -> {
-            try { Thread.sleep(delay * 50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try {
+                Thread.sleep(delay * 50);
+            } catch (InterruptedException e) {
+                Thread.currentThread()
+                    .interrupt();
+            }
             task.run();
         }).start();
     }
@@ -81,7 +87,12 @@ public class CraftScheduler implements BukkitScheduler {
     @Override
     public void runTaskLaterAsynchronously(Plugin plugin, Runnable task, long delay) {
         new Thread(() -> {
-            try { Thread.sleep(delay * 50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try {
+                Thread.sleep(delay * 50);
+            } catch (InterruptedException e) {
+                Thread.currentThread()
+                    .interrupt();
+            }
             task.run();
         }).start();
     }
@@ -89,10 +100,21 @@ public class CraftScheduler implements BukkitScheduler {
     @Override
     public void runTaskTimer(Plugin plugin, Runnable task, long delay, long period) {
         new Thread(() -> {
-            try { Thread.sleep(delay * 50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try {
+                Thread.sleep(delay * 50);
+            } catch (InterruptedException e) {
+                Thread.currentThread()
+                    .interrupt();
+            }
             while (true) {
                 task.run();
-                try { Thread.sleep(period * 50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                try {
+                    Thread.sleep(period * 50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread()
+                        .interrupt();
+                    break;
+                }
             }
         }).start();
     }
@@ -100,10 +122,21 @@ public class CraftScheduler implements BukkitScheduler {
     @Override
     public void runTaskTimerAsynchronously(Plugin plugin, Runnable task, long delay, long period) {
         new Thread(() -> {
-            try { Thread.sleep(delay * 50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            try {
+                Thread.sleep(delay * 50);
+            } catch (InterruptedException e) {
+                Thread.currentThread()
+                    .interrupt();
+            }
             while (true) {
                 task.run();
-                try { Thread.sleep(period * 50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                try {
+                    Thread.sleep(period * 50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread()
+                        .interrupt();
+                    break;
+                }
             }
         }).start();
     }
@@ -129,6 +162,7 @@ public class CraftScheduler implements BukkitScheduler {
     }
 
     private class CraftTask implements BukkitTask {
+
         private final int taskId;
         private final Runnable task;
         private final long delay;

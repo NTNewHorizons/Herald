@@ -1,40 +1,37 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.commands;
 
-import github.scarsz.discordsrv.Debug;
-import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.util.DebugUtil;
+import java.util.*;
+
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 
-import java.util.*;
+import github.scarsz.discordsrv.Debug;
+import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.util.DebugUtil;
 
 public class CommandDebugger {
 
-    @Command(commandNames = { "debugger" },
-            helpMessage = "A toggleable timings-like command to dump debug information to bin.scarsz.me",
-            permission = "discordsrv.debug"
-    )
+    @Command(
+        commandNames = { "debugger" },
+        helpMessage = "A toggleable timings-like command to dump debug information to bin.scarsz.me",
+        permission = "discordsrv.debug")
     public static void execute(CommandSender sender, String[] args) {
         List<String> arguments = new ArrayList<>(Arrays.asList(args));
 
@@ -65,25 +62,43 @@ public class CommandDebugger {
             }
 
             if (validArguments.isEmpty()) {
-                DiscordSRV.getPlugin().getDebuggerCategories().add(Debug.UNCATEGORIZED.name());
+                DiscordSRV.getPlugin()
+                    .getDebuggerCategories()
+                    .add(Debug.UNCATEGORIZED.name());
             } else {
-                DiscordSRV.getPlugin().getDebuggerCategories().addAll(validArguments);
+                DiscordSRV.getPlugin()
+                    .getDebuggerCategories()
+                    .addAll(validArguments);
             }
-            sender.sendMessage(ChatColor.DARK_AQUA + "Debugger enabled, use "
-                    + ChatColor.GRAY + "/discordsrv debugger stop " + ChatColor.DARK_AQUA + "to stop debugging or "
-                    + ChatColor.GRAY + "/discordsrv debugger upload " + ChatColor.DARK_AQUA + "to stop debugging and generate a debug report");
+            sender.sendMessage(
+                ChatColor.DARK_AQUA + "Debugger enabled, use "
+                    + ChatColor.GRAY
+                    + "/discordsrv debugger stop "
+                    + ChatColor.DARK_AQUA
+                    + "to stop debugging or "
+                    + ChatColor.GRAY
+                    + "/discordsrv debugger upload "
+                    + ChatColor.DARK_AQUA
+                    + "to stop debugging and generate a debug report");
             return;
         } else if (subCommand.equalsIgnoreCase("stop") || subCommand.equalsIgnoreCase("off")
-                || (upload = subCommand.equalsIgnoreCase("upload"))) {
-            if (upload) {
-                String result = DebugUtil.run(sender instanceof ConsoleCommandSender ? "CONSOLE" : sender.getName(), arguments.size() == 0 ? 256 : Integer.parseInt(arguments.get(0)));
-                sender.sendMessage(ChatColor.DARK_AQUA + "Your debug report has been generated and is available at " + ChatColor.AQUA + result);
-            } else {
-                sender.sendMessage(ChatColor.DARK_AQUA + "Debugger disabled");
+            || (upload = subCommand.equalsIgnoreCase("upload"))) {
+                if (upload) {
+                    String result = DebugUtil.run(
+                        sender instanceof ConsoleCommandSender ? "CONSOLE" : sender.getName(),
+                        arguments.size() == 0 ? 256 : Integer.parseInt(arguments.get(0)));
+                    sender.sendMessage(
+                        ChatColor.DARK_AQUA + "Your debug report has been generated and is available at "
+                            + ChatColor.AQUA
+                            + result);
+                } else {
+                    sender.sendMessage(ChatColor.DARK_AQUA + "Debugger disabled");
+                }
+                DiscordSRV.getPlugin()
+                    .getDebuggerCategories()
+                    .clear();
+                return;
             }
-            DiscordSRV.getPlugin().getDebuggerCategories().clear();
-            return;
-        }
 
         sender.sendMessage(ChatColor.RED + "Invalid subcommand " + ChatColor.DARK_RED + subCommand);
     }

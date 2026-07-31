@@ -1,26 +1,20 @@
 /*
  * DiscordSRV - https://github.com/DiscordSRV/DiscordSRV
- *
  * Copyright (C) 2016 - 2024 Austin "Scarsz" Shapiro
- *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
- *
  * You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
+ * License along with this program. If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  */
 
 package github.scarsz.discordsrv.util;
-
-import github.scarsz.discordsrv.DiscordSRV;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -31,10 +25,13 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import github.scarsz.discordsrv.DiscordSRV;
+
 public class SQLUtil {
 
     public static void createDatabaseIfNotExists(Connection connection, String database) throws SQLException {
-        try (final PreparedStatement statement = connection.prepareStatement("CREATE DATABASE IF NOT EXISTS `" + database + "`")) {
+        try (final PreparedStatement statement = connection
+            .prepareStatement("CREATE DATABASE IF NOT EXISTS `" + database + "`")) {
             statement.executeUpdate();
         }
     }
@@ -45,7 +42,8 @@ public class SQLUtil {
             statement.executeQuery();
             tableExists = true;
         } catch (SQLException e) {
-            if (!e.getMessage().contains("doesn't exist")) DiscordSRV.error(e);
+            if (!e.getMessage()
+                .contains("doesn't exist")) DiscordSRV.error(e);
         }
         return tableExists;
     }
@@ -62,19 +60,23 @@ public class SQLUtil {
         return columns;
     }
 
-    public static boolean checkIfTableMatchesStructure(Connection connection, String table, Map<String, String> expectedColumns) throws SQLException {
+    public static boolean checkIfTableMatchesStructure(Connection connection, String table,
+        Map<String, String> expectedColumns) throws SQLException {
         return checkIfTableMatchesStructure(connection, table, expectedColumns, true);
     }
 
-    public static boolean checkIfTableMatchesStructure(Connection connection, String table, Map<String, String> expectedColumns, boolean showErrors) throws SQLException {
+    public static boolean checkIfTableMatchesStructure(Connection connection, String table,
+        Map<String, String> expectedColumns, boolean showErrors) throws SQLException {
         final List<String> found = new LinkedList<>();
-        for (Map.Entry<String, String> entry : SQLUtil.getTableColumns(connection, table).entrySet()) {
+        for (Map.Entry<String, String> entry : SQLUtil.getTableColumns(connection, table)
+            .entrySet()) {
             if (!expectedColumns.containsKey(entry.getKey())) continue; // only check columns that we're expecting
             final String expectedType = expectedColumns.get(entry.getKey());
             final String actualType = entry.getValue();
             if (!expectedType.equals(actualType)) {
                 if (showErrors) {
-                    DiscordSRV.error("Expected type " + expectedType + " for column " + entry.getKey() + ", got " + actualType);
+                    DiscordSRV.error(
+                        "Expected type " + expectedType + " for column " + entry.getKey() + ", got " + actualType);
                 }
                 return false;
             }
