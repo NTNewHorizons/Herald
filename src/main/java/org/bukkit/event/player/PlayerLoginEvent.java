@@ -10,6 +10,7 @@ public class PlayerLoginEvent extends PlayerEvent {
     private static final HandlerList handlers = new HandlerList();
     private Result result = Result.ALLOWED;
     private String kickMessage = "";
+    private final InetAddress address;
 
     public enum Result {
         ALLOWED,
@@ -20,7 +21,12 @@ public class PlayerLoginEvent extends PlayerEvent {
     }
 
     public PlayerLoginEvent(Player player) {
+        this(player, null);
+    }
+
+    public PlayerLoginEvent(Player player, InetAddress address) {
         super(player);
+        this.address = address;
     }
 
     public Result getResult() {
@@ -32,7 +38,7 @@ public class PlayerLoginEvent extends PlayerEvent {
     }
 
     public InetAddress getAddress() {
-        return null;
+        return address;
     }
 
     public void disallow(Result result, String message) {

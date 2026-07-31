@@ -1,6 +1,9 @@
 package com.herald;
 
 import java.io.File;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
@@ -14,7 +17,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -115,6 +120,27 @@ public class HeraldDiscordSRV {
         CraftPlayer craftPlayer = craftServer.getCraftPlayer(player);
         if (craftPlayer == null) return;
 
+        InetAddress address = getPlayerAddress(player);
+        AsyncPlayerPreLoginEvent preLoginEvent = new AsyncPlayerPreLoginEvent(
+            craftPlayer.getName(),
+            craftPlayer.getUniqueId(),
+            address);
+        Bukkit.getPluginManager()
+            .callEvent(preLoginEvent);
+        if (!preLoginEvent.getLoginResult()
+            .allows()) {
+            kickPlayer(player, preLoginEvent.getKickMessage());
+            return;
+        }
+
+        PlayerLoginEvent loginEvent = new PlayerLoginEvent(craftPlayer, address);
+        Bukkit.getPluginManager()
+            .callEvent(loginEvent);
+        if (loginEvent.getResult() != PlayerLoginEvent.Result.ALLOWED) {
+            kickPlayer(player, loginEvent.getKickMessage());
+            return;
+        }
+
         PlayerJoinEvent joinEvent = new PlayerJoinEvent(craftPlayer, craftPlayer.getName() + " joined the game");
         Bukkit.getPluginManager()
             .callEvent(joinEvent);
@@ -155,5 +181,19 @@ public class HeraldDiscordSRV {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    private InetAddress getPlayerAddress(EntityPlayerMP player) {
+        if (player == null || player.playerNetServerHandler == null) return null;
+        SocketAddress socketAddress = player.playerNetServerHandler.netManager.getSocketAddress();
+        if (socketAddress instanceof InetSocketAddress) {
+            return ((InetSocketAddress) socketAddress).getAddress();
+        }
+        return null;
+    }
+
+    private void kickPlayer(EntityPlayerMP player, String message) {
+        if (player == null || player.playerNetServerHandler == null) return;
+        player.playerNetServerHandler.kickPlayerFromServer(message == null ? "" : message);
     }
 }
