@@ -1359,12 +1359,8 @@ public class DiscordSRV extends JavaPlugin {
         new PlayerBanListener();
         new PlayerDeathListener();
         new PlayerJoinLeaveListener();
-        try {
-            Class.forName("org.bukkit.event.player.PlayerAdvancementDoneEvent");
-            new PlayerAdvancementDoneListener();
-        } catch (Exception ignored) {
-            new PlayerAchievementsListener();
-        }
+        // Herald runs on Minecraft 1.7.10 which only has achievements, not advancements
+        new PlayerAchievementsListener();
 
         // register incompatible client manager
         // Bukkit.getPluginManager().registerEvents(incompatibleClientManager, this);

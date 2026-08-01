@@ -106,7 +106,7 @@ public final class Bukkit {
     }
 
     public static OfflinePlayer[] getOfflinePlayers() {
-        return new OfflinePlayer[0];
+        return server != null ? server.getOfflinePlayers() : new OfflinePlayer[0];
     }
 
     public static Set<OfflinePlayer> getWhitelistedPlayers() {

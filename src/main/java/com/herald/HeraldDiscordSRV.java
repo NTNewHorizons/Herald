@@ -7,10 +7,14 @@ import java.net.SocketAddress;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.stats.Achievement;
+import net.minecraft.util.StatCollector;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.event.entity.player.AchievementEvent;
 import net.minecraftforge.event.world.WorldEvent;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bukkit.Bukkit;
@@ -18,6 +22,7 @@ import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
+import org.bukkit.event.player.PlayerAchievementAwardedEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -165,6 +170,76 @@ public class HeraldDiscordSRV {
         if (craftServer != null) {
             craftServer.addWorld(event.world);
         }
+    }
+
+    @SubscribeEvent
+    public void onPlayerAchievement(AchievementEvent event) {
+        if (discordSRV == null || !discordSRV.isEnabled()) return;
+        if (!Config.broadcastAchievements) return;
+        if (event == null || event.achievement == null) return;
+        if (!(event.entityPlayer instanceof EntityPlayerMP)) return;
+
+        EntityPlayerMP player = (EntityPlayerMP) event.entityPlayer;
+        CraftPlayer craftPlayer = craftServer != null ? craftServer.getCraftPlayer(player) : null;
+        if (craftPlayer == null) return;
+
+        // the event fires before the stat is recorded; skip achievements the player already owns
+        if (player.func_147099_x()
+            .hasAchievementUnlocked(event.achievement)) return;
+
+        String achievementName = resolveAchievementName(event.achievement);
+        if (StringUtils.isBlank(achievementName)) return;
+
+        Bukkit.getPluginManager()
+            .callEvent(new PlayerAchievementAwardedEvent(craftPlayer, achievementName));
+    }
+
+    private static String resolveAchievementName(Achievement achievement) {
+        String statId = achievement.statId;
+        if (StringUtils.isBlank(statId)) return null;
+
+        String translated = achievement.func_150951_e()
+            .getUnformattedText();
+        if (StringUtils.isNotBlank(translated) && !translated.equals(statId)) {
+            return translated;
+        }
+
+        String localized = StatCollector.translateToLocal(statId);
+        if (StringUtils.isNotBlank(localized) && !localized.equals(statId)) {
+            return localized;
+        }
+
+        String namePart = statId.startsWith("achievement.") ? statId.substring("achievement.".length()) : statId;
+        return humanizeAchievementName(namePart);
+    }
+
+    private static String humanizeAchievementName(String name) {
+        if (StringUtils.isBlank(name)) return null;
+
+        StringBuilder spaced = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c == '_') {
+                spaced.append(' ');
+            } else if (i > 0 && Character.isUpperCase(c) && !Character.isUpperCase(name.charAt(i - 1))) {
+                spaced.append(' ')
+                    .append(c);
+            } else {
+                spaced.append(c);
+            }
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (String word : spaced.toString()
+            .split("\\s+")) {
+            if (word.isEmpty()) continue;
+            if (result.length() > 0) result.append(' ');
+            result.append(Character.toUpperCase(word.charAt(0)));
+            if (word.length() > 1) result.append(
+                word.substring(1)
+                    .toLowerCase());
+        }
+        return result.toString();
     }
 
     public void shutdown() {

@@ -77,7 +77,9 @@ public class CraftPlayer implements Player {
 
     @Override
     public InetSocketAddress getAddress() {
-        return null;
+        if (handle.playerNetServerHandler == null) return null;
+        java.net.SocketAddress socketAddress = handle.playerNetServerHandler.netManager.getSocketAddress();
+        return socketAddress instanceof InetSocketAddress ? (InetSocketAddress) socketAddress : null;
     }
 
     @Override
@@ -148,7 +150,8 @@ public class CraftPlayer implements Player {
 
     @Override
     public boolean hasPermission(String name) {
-        return true;
+        return handle.mcServer.getConfigurationManager()
+            .func_152596_g(handle.getGameProfile());
     }
 
     @Override

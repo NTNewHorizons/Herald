@@ -4,6 +4,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 
 public class CommonProxy {
 
@@ -25,5 +26,10 @@ public class CommonProxy {
     public void serverStarting(FMLServerStartingEvent event) {
         HeraldDiscordSRV.getInstance()
             .serverStarting(event);
+    }
+
+    public void serverStopping(FMLServerStoppingEvent event) {
+        HeraldDiscordSRV.getInstance()
+            .shutdown();
     }
 }

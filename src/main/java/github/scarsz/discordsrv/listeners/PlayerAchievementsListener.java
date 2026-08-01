@@ -16,21 +16,18 @@
 
 package github.scarsz.discordsrv.listeners;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.function.BiFunction;
 
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.TextChannel;
 
 import org.apache.commons.lang3.StringUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Event;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
-import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerEvent;
-import org.bukkit.plugin.EventExecutor;
-import org.bukkit.plugin.RegisteredListener;
+import org.bukkit.event.player.PlayerAchievementAwardedEvent;
 
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
@@ -39,47 +36,19 @@ import github.scarsz.discordsrv.api.events.AchievementMessagePreProcessEvent;
 import github.scarsz.discordsrv.objects.MessageFormat;
 import github.scarsz.discordsrv.util.*;
 
-public class PlayerAchievementsListener {
-
-    @SuppressWarnings("Convert2Lambda")
-    private final RegisteredListener registeredListener = new RegisteredListener(
-        new Listener() {},
-        new EventExecutor() {
-
-            @Override
-            public void execute(Listener listener, Event event) {
-                onPlayerAchievementAwarded(event);
-            }
-        },
-        EventPriority.MONITOR,
-        DiscordSRV.getPlugin(),
-        false);
-    private HandlerList handlerList;
+public class PlayerAchievementsListener implements Listener {
 
     public PlayerAchievementsListener() {
-        try {
-            Class<?> achievementAwardedEventClass = Class
-                .forName("org.bukkit.event.player.PlayerAchievementAwardedEvent");
-
-            // in MC <1.16 servers, the achievement class is present but has a deprecated annotation
-            if (achievementAwardedEventClass.isAnnotationPresent(Deprecated.class)) return;
-
-            handlerList = (HandlerList) achievementAwardedEventClass.getMethod("getHandlerList")
-                .invoke(null);
-            handlerList.register(registeredListener);
-        } catch (ClassNotFoundException ignored) {
-            // achievement class not found, MC >= 1.16
-        } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            DiscordSRV.error(
-                "Failed to get the handler list for PlayerAchievementAwardedEvent, achievement events will not function");
-        }
+        Bukkit.getPluginManager()
+            .registerEvents(this, DiscordSRV.getPlugin());
     }
 
-    public void onPlayerAchievementAwarded(Event event) {
-        // return if achievement or player objects are knackered because this can apparently happen for some reason
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerAchievementAwarded(PlayerAchievementAwardedEvent event) {
         if (event == null) return;
 
-        Player player = ((PlayerEvent) event).getPlayer();
+        Player player = event.getPlayer();
+        if (player == null) return;
 
         // respect invisibility plugins
         if (PlayerUtil.isVanished(player)) return;
@@ -87,23 +56,11 @@ public class PlayerAchievementsListener {
         SchedulerUtil.runTaskAsynchronously(DiscordSRV.getPlugin(), () -> runAsync(event, player));
     }
 
-    private void runAsync(Event event, Player player) {
-        Enum<?> achievement;
-        try {
-            achievement = (Enum<?>) event.getClass()
-                .getMethod("getAchievement")
-                .invoke(event);
-            if (achievement == null) return;
-        } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            DiscordSRV.error("Failed to get achievement name from " + event.getEventName() + ": " + e.getMessage());
-            handlerList.unregister(registeredListener);
-            return;
-        }
+    private void runAsync(PlayerAchievementAwardedEvent event, Player player) {
+        String achievementName = event.getAchievementName();
 
-        // turn "ACHIEVEMENT_NAME" into "Achievement Name"
         String channelName = DiscordSRV.getPlugin()
             .getOptionalChannel("awards");
-        String achievementName = PrettyUtil.beautify(achievement);
 
         MessageFormat messageFormat = DiscordSRV.getPlugin()
             .getMessageFromConfiguration("MinecraftPlayerAchievementMessage");

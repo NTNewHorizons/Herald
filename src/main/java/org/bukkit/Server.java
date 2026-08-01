@@ -31,6 +31,8 @@ public interface Server {
 
     OfflinePlayer getOfflinePlayer(UUID uuid);
 
+    OfflinePlayer[] getOfflinePlayers();
+
     Set<OfflinePlayer> getBannedPlayers();
 
     Set<OfflinePlayer> getWhitelistedPlayers();

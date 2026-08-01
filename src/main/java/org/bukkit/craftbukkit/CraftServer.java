@@ -129,7 +129,42 @@ public class CraftServer implements Server {
     }
 
     @Override
+    public OfflinePlayer[] getOfflinePlayers() {
+        List<OfflinePlayer> players = new ArrayList<>();
+        Set<UUID> seen = new HashSet<>();
+
+        for (Player player : getOnlinePlayers()) {
+            players.add(player);
+            seen.add(player.getUniqueId());
+        }
+
+        if (console != null) {
+            String[] usernames = console.func_152358_ax()
+                .func_152654_a();
+            for (String username : usernames) {
+                if (username == null) continue;
+                com.mojang.authlib.GameProfile profile = console.func_152358_ax()
+                    .func_152655_a(username);
+                if (profile == null || profile.getId() == null || seen.contains(profile.getId())) continue;
+                players.add(new CraftOfflinePlayer(profile.getName(), profile.getId()));
+                seen.add(profile.getId());
+            }
+        }
+
+        return players.toArray(new OfflinePlayer[0]);
+    }
+
+    @Override
     public OfflinePlayer getOfflinePlayer(UUID uuid) {
+        Player online = getPlayer(uuid);
+        if (online != null) return new CraftOfflinePlayer(online.getName(), uuid);
+
+        if (console != null) {
+            com.mojang.authlib.GameProfile profile = console.func_152358_ax()
+                .func_152652_a(uuid);
+            if (profile != null) return new CraftOfflinePlayer(profile.getName(), uuid);
+        }
+
         return new CraftOfflinePlayer(uuid);
     }
 
