@@ -2669,6 +2669,22 @@ public class DiscordSRV extends JavaPlugin {
 
     private static File playerDataFolder = null;
 
+    /**
+     * Herald-specific: worlds are not loaded yet when {@link DiscordSRV#onEnable()} runs during Forge init, so the
+     * player-data folder is refreshed whenever a world finishes loading.
+     */
+    public static void updatePlayerDataFolder() {
+        if (Bukkit.getWorlds()
+            .size() > 0) {
+            File folder = Bukkit.getWorlds()
+                .get(0)
+                .getWorldFolder();
+            if (folder != null) {
+                playerDataFolder = new File(folder.getAbsolutePath(), "/playerdata");
+            }
+        }
+    }
+
     public static int getTotalPlayerCount() {
         if (playerDataFolder == null) return 0;
         File[] playerFiles = playerDataFolder.listFiles(

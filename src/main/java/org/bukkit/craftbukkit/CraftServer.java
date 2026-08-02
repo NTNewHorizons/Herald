@@ -2,6 +2,8 @@ package org.bukkit.craftbukkit;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,10 +12,17 @@ import java.util.Set;
 import java.util.UUID;
 
 import net.minecraft.command.ICommandSender;
+import net.minecraft.command.PlayerSelector;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.management.IPBanEntry;
+import net.minecraft.server.management.ServerConfigurationManager;
+import net.minecraft.server.management.UserListBans;
+import net.minecraft.server.management.UserListBansEntry;
+import net.minecraft.server.management.UserListWhitelist;
 import net.minecraft.world.WorldServer;
 
+import org.bukkit.BanEntry;
 import org.bukkit.BanList;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
@@ -29,6 +38,8 @@ import org.bukkit.craftbukkit.scheduler.CraftScheduler;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.ServicesManager;
+
+import com.mojang.authlib.GameProfile;
 
 public class CraftServer implements Server {
 
@@ -168,41 +179,172 @@ public class CraftServer implements Server {
         return new CraftOfflinePlayer(uuid);
     }
 
+    private ServerConfigurationManager getConfigurationManager() {
+        return console != null ? console.getConfigurationManager() : null;
+    }
+
     @Override
     public Set<OfflinePlayer> getBannedPlayers() {
-        return new HashSet<>();
+        Set<OfflinePlayer> banned = new HashSet<>();
+        ServerConfigurationManager manager = getConfigurationManager();
+        if (manager == null) return banned;
+        UserListBans list = manager.func_152608_h();
+        for (String name : list.func_152685_a()) {
+            GameProfile profile = list.func_152703_a(name);
+            if (profile != null && profile.getId() != null) {
+                banned.add(new CraftOfflinePlayer(profile.getName(), profile.getId()));
+            }
+        }
+        return banned;
     }
 
     @Override
     public Set<OfflinePlayer> getWhitelistedPlayers() {
-        return new HashSet<>();
+        Set<OfflinePlayer> whitelisted = new HashSet<>();
+        ServerConfigurationManager manager = getConfigurationManager();
+        if (manager == null) return whitelisted;
+        UserListWhitelist list = manager.func_152599_k();
+        for (String name : list.func_152685_a()) {
+            GameProfile profile = list.func_152706_a(name);
+            if (profile != null && profile.getId() != null) {
+                whitelisted.add(new CraftOfflinePlayer(profile.getName(), profile.getId()));
+            }
+        }
+        return whitelisted;
     }
 
     @Override
     public Set<String> getIPBans() {
-        return new HashSet<>();
+        Set<String> bans = new HashSet<>();
+        ServerConfigurationManager manager = getConfigurationManager();
+        if (manager == null) return bans;
+        Collections.addAll(
+            bans,
+            manager.getBannedIPs()
+                .func_152685_a());
+        return bans;
     }
 
     @Override
     public BanList getBanList(BanList.Type type) {
-        return new BanList() {
+        ServerConfigurationManager manager = getConfigurationManager();
+        if (manager == null) {
+            return new EmptyBanList();
+        }
+        return type == BanList.Type.IP ? new IpBanListAdapter(manager.getBannedIPs())
+            : new NameBanListAdapter(manager.func_152608_h());
+    }
 
-            @Override
-            public Set<org.bukkit.BanEntry> getBanEntries() {
-                return new HashSet<>();
+    private static class EmptyBanList implements BanList {
+
+        @Override
+        public Set<BanEntry> getBanEntries() {
+            return new HashSet<>();
+        }
+
+        @Override
+        public boolean isBanned(String target) {
+            return false;
+        }
+
+        @Override
+        public void addBan(String target, String reason, Date expires, String source) {}
+
+        @Override
+        public void pardon(String target) {}
+    }
+
+    private static BanEntry toBukkitBanEntry(String target, net.minecraft.server.management.BanEntry entry) {
+        BanEntry bukkitEntry = new BanEntry(target);
+        bukkitEntry.setReason(entry.getBanReason());
+        bukkitEntry.setExpiration(entry.getBanEndDate());
+        return bukkitEntry;
+    }
+
+    private class NameBanListAdapter implements BanList {
+
+        private final UserListBans list;
+
+        NameBanListAdapter(UserListBans list) {
+            this.list = list;
+        }
+
+        @Override
+        public Set<BanEntry> getBanEntries() {
+            Set<BanEntry> entries = new HashSet<>();
+            for (String name : list.func_152685_a()) {
+                GameProfile profile = list.func_152703_a(name);
+                if (profile == null) continue;
+                net.minecraft.server.management.UserListEntry entry = list.func_152683_b(profile);
+                if (entry instanceof net.minecraft.server.management.BanEntry) {
+                    entries.add(toBukkitBanEntry(profile.getName(), (net.minecraft.server.management.BanEntry) entry));
+                }
             }
+            return entries;
+        }
 
-            @Override
-            public boolean isBanned(String target) {
-                return false;
+        @Override
+        public boolean isBanned(String target) {
+            return list.func_152703_a(target) != null;
+        }
+
+        @Override
+        public void addBan(String target, String reason, Date expires, String source) {
+            GameProfile profile = list.func_152703_a(target);
+            if (profile == null && console != null) {
+                profile = console.func_152358_ax()
+                    .func_152655_a(target);
             }
+            if (profile == null) {
+                // cannot ban an unknown player, mirrors vanilla /ban behavior
+                return;
+            }
+            list.func_152687_a(new UserListBansEntry(profile, new Date(), source, expires, reason));
+        }
 
-            @Override
-            public void addBan(String target, String reason, java.util.Date expires, String source) {}
+        @Override
+        public void pardon(String target) {
+            GameProfile profile = list.func_152703_a(target);
+            if (profile != null) {
+                list.func_152684_c(profile);
+            }
+        }
+    }
 
-            @Override
-            public void pardon(String target) {}
-        };
+    private class IpBanListAdapter implements BanList {
+
+        private final net.minecraft.server.management.BanList list;
+
+        IpBanListAdapter(net.minecraft.server.management.BanList list) {
+            this.list = list;
+        }
+
+        @Override
+        public Set<BanEntry> getBanEntries() {
+            Set<BanEntry> entries = new HashSet<>();
+            for (String ip : list.func_152685_a()) {
+                net.minecraft.server.management.UserListEntry entry = list.func_152683_b(ip);
+                if (entry instanceof net.minecraft.server.management.BanEntry) {
+                    entries.add(toBukkitBanEntry(ip, (net.minecraft.server.management.BanEntry) entry));
+                }
+            }
+            return entries;
+        }
+
+        @Override
+        public boolean isBanned(String target) {
+            return list.func_152683_b(target) != null;
+        }
+
+        @Override
+        public void addBan(String target, String reason, Date expires, String source) {
+            list.func_152687_a(new IPBanEntry(target, new Date(), source, expires, reason));
+        }
+
+        @Override
+        public void pardon(String target) {
+            list.func_152684_c(target);
+        }
     }
 
     @Override
@@ -243,7 +385,20 @@ public class CraftServer implements Server {
 
     @Override
     public List<Entity> selectEntities(CommandSender sender, String selector) {
-        return new ArrayList<>();
+        List<Entity> entities = new ArrayList<>();
+        if (sender == null || selector == null || console == null) return entities;
+        ICommandSender commandSender = sender instanceof CraftPlayer ? ((CraftPlayer) sender).getHandle() : console;
+        try {
+            EntityPlayerMP[] players = PlayerSelector.matchPlayers(commandSender, selector);
+            if (players != null) {
+                for (EntityPlayerMP player : players) {
+                    entities.add(getCraftPlayer(player));
+                }
+            }
+        } catch (Exception e) {
+            // invalid selector or lacking permission; leave as literal
+        }
+        return entities;
     }
 
     @Override
@@ -253,7 +408,7 @@ public class CraftServer implements Server {
 
     @Override
     public boolean getOnlineMode() {
-        return true;
+        return console != null && console.isServerInOnlineMode();
     }
 
     @Override

@@ -5,12 +5,17 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 
+import net.minecraft.command.ICommand;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.stats.Achievement;
+import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.CommandEvent;
 import net.minecraftforge.event.ServerChatEvent;
+import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.AchievementEvent;
 import net.minecraftforge.event.world.WorldEvent;
 
@@ -20,12 +25,16 @@ import org.apache.logging.log4j.Logger;
 import org.bukkit.Bukkit;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerAchievementAwardedEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -35,6 +44,7 @@ import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
 import github.scarsz.discordsrv.DiscordSRV;
 
 public class HeraldDiscordSRV {
@@ -81,6 +91,14 @@ public class HeraldDiscordSRV {
 
         if (discordSRV != null) {
             try {
+                // register a Forge-native permission provider so group-role synchronization and %primarygroup% have a
+                // source
+                craftServer.getServicesManager()
+                    .register(
+                        net.milkbowl.vault.permission.Permission.class,
+                        new net.milkbowl.vault.permission.Permission(),
+                        DiscordSRV.getPlugin(),
+                        org.bukkit.plugin.ServicePriority.Normal);
                 MinecraftForge.EVENT_BUS.register(this);
                 FMLCommonHandler.instance()
                     .bus()
@@ -102,6 +120,76 @@ public class HeraldDiscordSRV {
         if (discordSRV != null) {
             event.registerServerCommand(new CommandDiscord());
         }
+    }
+
+    @SubscribeEvent
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        if (craftServer == null) return;
+        if (event.phase != TickEvent.Phase.END) return;
+        craftServer.getScheduler()
+            .tick();
+    }
+
+    @SubscribeEvent
+    public void onLivingDeath(LivingDeathEvent event) {
+        if (discordSRV == null || !discordSRV.isEnabled()) return;
+        if (event == null || event.entityLiving == null) return;
+        if (event.entityLiving.worldObj.isRemote) return;
+        if (!(event.entityLiving instanceof EntityPlayerMP)) return;
+
+        EntityPlayerMP player = (EntityPlayerMP) event.entityLiving;
+        CraftPlayer craftPlayer = craftServer != null ? craftServer.getCraftPlayer(player) : null;
+        if (craftPlayer == null) return;
+
+        String deathMessage = resolveDeathMessage(event.entityLiving);
+        PlayerDeathEvent deathEvent = new PlayerDeathEvent(craftPlayer, deathMessage);
+        Bukkit.getPluginManager()
+            .callEvent(deathEvent);
+    }
+
+    private static String resolveDeathMessage(EntityLivingBase entity) {
+        try {
+            net.minecraft.util.CombatTracker tracker = entity.func_110142_aN();
+            if (tracker == null) return null;
+            IChatComponent message = tracker.func_151521_b();
+            return message != null ? message.getUnformattedText() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @SubscribeEvent
+    public void onCommand(CommandEvent event) {
+        if (discordSRV == null || !discordSRV.isEnabled()) return;
+        if (event == null || event.command == null || event.sender == null) return;
+
+        String command = buildCommandString(event.command, event.parameters);
+        if (StringUtils.isBlank(command)) return;
+
+        if (event.sender instanceof EntityPlayerMP) {
+            EntityPlayerMP player = (EntityPlayerMP) event.sender;
+            CraftPlayer craftPlayer = craftServer != null ? craftServer.getCraftPlayer(player) : null;
+            if (craftPlayer == null) return;
+
+            PlayerCommandPreprocessEvent commandEvent = new PlayerCommandPreprocessEvent(craftPlayer, command);
+            Bukkit.getPluginManager()
+                .callEvent(commandEvent);
+        } else if (event.sender == MinecraftServer.getServer()) {
+            ServerCommandEvent commandEvent = new ServerCommandEvent(Bukkit.getConsoleSender(), command);
+            Bukkit.getPluginManager()
+                .callEvent(commandEvent);
+        }
+    }
+
+    private static String buildCommandString(ICommand command, String[] parameters) {
+        StringBuilder builder = new StringBuilder("/").append(command.getCommandName());
+        if (parameters != null) {
+            for (String parameter : parameters) {
+                if (parameter != null) builder.append(' ')
+                    .append(parameter);
+            }
+        }
+        return builder.toString();
     }
 
     @SubscribeEvent
@@ -162,6 +250,13 @@ public class HeraldDiscordSRV {
         PlayerQuitEvent quitEvent = new PlayerQuitEvent(craftPlayer, craftPlayer.getName() + " left the game");
         Bukkit.getPluginManager()
             .callEvent(quitEvent);
+
+        // Forge 1.7.10 has no kick-specific event; kicks funnel through PlayerLoggedOutEvent too.
+        // Firing PlayerKickEvent here lets PlayerBanListener run its ban check on every logout - it is
+        // self-filtering (only acts when the player actually ends up on the ban list).
+        PlayerKickEvent kickEvent = new PlayerKickEvent(craftPlayer, "", craftPlayer.getName() + " left the game");
+        Bukkit.getPluginManager()
+            .callEvent(kickEvent);
     }
 
     @SubscribeEvent
@@ -169,6 +264,7 @@ public class HeraldDiscordSRV {
         if (discordSRV == null) return;
         if (craftServer != null) {
             craftServer.addWorld(event.world);
+            DiscordSRV.updatePlayerDataFolder();
         }
     }
 
@@ -246,6 +342,10 @@ public class HeraldDiscordSRV {
         if (discordSRV != null && discordSRV.isEnabled()) {
             log.info("Shutting down Herald DiscordSRV");
             discordSRV.onDisable();
+        }
+        if (craftServer != null) {
+            craftServer.getScheduler()
+                .shutdown();
         }
         this.enabled = false;
     }

@@ -26,7 +26,7 @@ public class CraftConsoleCommandSender implements ConsoleCommandSender {
 
     @Override
     public Server getServer() {
-        return null;
+        return org.bukkit.Bukkit.getServer();
     }
 
     @Override

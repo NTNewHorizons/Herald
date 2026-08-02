@@ -16,8 +16,23 @@
 
 package github.scarsz.discordsrv.util;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import net.dv8tion.jda.api.OnlineStatus;
+import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Guild;
+import net.dv8tion.jda.api.entities.Member;
+import net.dv8tion.jda.api.entities.Role;
+import net.dv8tion.jda.api.entities.User;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextColor;
 
 import org.apache.commons.lang3.StringUtils;
 import org.bukkit.Bukkit;
@@ -26,10 +41,16 @@ import org.bukkit.entity.Player;
 
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.Lag;
+import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
+import github.scarsz.discordsrv.objects.managers.link.JdbcAccountLinkManager;
 
 public class PlaceholderUtil {
 
     private PlaceholderUtil() {}
+
+    private static final Pattern DISCORDSRV_PLACEHOLDER_PATTERN = Pattern.compile("%discordsrv_([a-zA-Z0-9_]+)%");
+    private static final Pattern SPECIFIC_ROLE_PATTERN = Pattern.compile("role_(\\d+)_(\\w+)");
+    private static long lastJdbcIssue = -1;
 
     public static String replacePlaceholders(String input) {
         return replacePlaceholders(input, null);
@@ -42,7 +63,266 @@ public class PlaceholderUtil {
             input = me.clip.placeholderapi.PlaceholderAPI
                 .setPlaceholders(onlinePlayer != null ? onlinePlayer : player, input);
         }
+        // Herald runs without PlaceholderAPI; resolve the built-in %discordsrv_*% expansion natively
+        input = replaceDiscordSRVPlaceholders(input, player);
         return input;
+    }
+
+    private static String replaceDiscordSRVPlaceholders(String input, OfflinePlayer player) {
+        if (input == null || !input.contains("%discordsrv_")) return input;
+        Matcher matcher = DISCORDSRV_PLACEHOLDER_PATTERN.matcher(input);
+        StringBuffer result = new StringBuffer();
+        while (matcher.find()) {
+            String value = resolveDiscordSRVPlaceholder(matcher.group(1), player);
+            if (value == null) value = matcher.group(0);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(value));
+        }
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    private static String resolveDiscordSRVPlaceholder(String identifier, OfflinePlayer player) {
+        if (!DiscordSRV.isReady) return "...";
+
+        Guild mainGuild = DiscordSRV.getPlugin()
+            .getMainGuild();
+        if (mainGuild == null) return "";
+
+        Set<Member> onlineMembers = mainGuild.getMemberCache()
+            .stream()
+            .filter(member -> member.getOnlineStatus() != OnlineStatus.OFFLINE)
+            .collect(Collectors.toSet());
+        Set<String> onlineMemberIds = onlineMembers.stream()
+            .map(Member::getId)
+            .collect(Collectors.toSet());
+        AccountLinkManager accountLinkManager = DiscordSRV.getPlugin()
+            .getAccountLinkManager();
+        java.util.function.Supplier<Set<String>> linkedAccounts = () -> {
+            if (accountLinkManager instanceof JdbcAccountLinkManager && Bukkit.isPrimaryThread()) {
+                long currentTime = System.currentTimeMillis();
+                if (lastJdbcIssue + TimeUnit.SECONDS.toMillis(10) < currentTime) {
+                    DiscordSRV.warning(
+                        "The %discordsrv_linked_online% placeholder was requested on the main thread while JDBC is enabled, this is unsupported");
+                    lastJdbcIssue = currentTime;
+                }
+                return Collections.emptySet();
+            }
+            return accountLinkManager.getLinkedAccounts()
+                .keySet();
+        };
+
+        switch (identifier) {
+            case "guild_id":
+                return mainGuild.getId();
+            case "guild_name":
+                return mainGuild.getName();
+            case "guild_icon_id":
+                return orEmptyString(mainGuild.getIconId());
+            case "guild_icon_url":
+                return orEmptyString(mainGuild.getIconUrl());
+            case "guild_splash_id":
+                return orEmptyString(mainGuild.getSplashId());
+            case "guild_splash_url":
+                return orEmptyString(mainGuild.getSplashUrl());
+            case "guild_owner_effective_name":
+                return applyOrEmptyString(mainGuild.getOwner(), Member::getEffectiveName);
+            case "guild_owner_nickname":
+                return applyOrEmptyString(mainGuild.getOwner(), Member::getNickname);
+            case "guild_owner_game_name":
+                return applyOrEmptyString(
+                    mainGuild.getOwner(),
+                    member -> member.getActivities()
+                        .stream()
+                        .findFirst()
+                        .map(Activity::getName)
+                        .orElse(""));
+            case "guild_owner_game_url":
+                return applyOrEmptyString(
+                    mainGuild.getOwner(),
+                    member -> member.getActivities()
+                        .stream()
+                        .findFirst()
+                        .map(Activity::getUrl)
+                        .orElse(""));
+            case "guild_bot_effective_name":
+                return mainGuild.getSelfMember()
+                    .getEffectiveName();
+            case "guild_bot_nickname":
+                return orEmptyString(
+                    mainGuild.getSelfMember()
+                        .getNickname());
+            case "guild_bot_game_name":
+                return applyOrEmptyString(
+                    mainGuild.getSelfMember(),
+                    member -> member.getActivities()
+                        .stream()
+                        .findFirst()
+                        .map(Activity::getName)
+                        .orElse(""));
+            case "guild_bot_game_url":
+                return applyOrEmptyString(
+                    mainGuild.getSelfMember(),
+                    member -> member.getActivities()
+                        .stream()
+                        .findFirst()
+                        .map(Activity::getUrl)
+                        .orElse(""));
+            case "guild_members_online":
+                return String.valueOf(onlineMembers.size());
+            case "guild_members_total":
+                return String.valueOf(
+                    mainGuild.getMembers()
+                        .size());
+            case "linked_online":
+                return String.valueOf(
+                    linkedAccounts.get()
+                        .stream()
+                        .filter(onlineMemberIds::contains)
+                        .count());
+            case "linked_total":
+                return String.valueOf(accountLinkManager.getLinkedAccountCount());
+            default:
+                break;
+        }
+
+        Matcher roleMatcher = SPECIFIC_ROLE_PATTERN.matcher(identifier);
+        if (roleMatcher.matches()) {
+            String roleId = roleMatcher.group(1);
+            Role role = DiscordUtil.getRole(roleId);
+            String subPlaceholder = roleMatcher.group(2);
+            if (role == null) return "";
+            switch (subPlaceholder) {
+                case "name":
+                    return role.getName();
+                case "color_hex":
+                    return getHex(role.getColorRaw());
+                case "color_code":
+                    return colorCode(role.getColorRaw());
+                default:
+                    return "";
+            }
+        }
+
+        if (player == null) return "";
+
+        String userId = Bukkit.isPrimaryThread() ? accountLinkManager.getDiscordIdFromCache(player.getUniqueId())
+            : accountLinkManager.getDiscordId(player.getUniqueId());
+        switch (identifier) {
+            case "user_id":
+                return orEmptyString(userId);
+            case "user_islinked":
+                return getBoolean(userId != null);
+            default:
+                break;
+        }
+
+        User user = DiscordUtil.getUserById(userId);
+        if (user == null) return "";
+
+        switch (identifier) {
+            case "user_name":
+                return user.getName();
+            case "user_tag":
+                return user.getAsTag();
+            default:
+                break;
+        }
+
+        Member member = mainGuild.getMember(user);
+        if (member == null) return "";
+
+        switch (identifier) {
+            case "user_effective_name":
+                return member.getEffectiveName();
+            case "user_nickname":
+                return orEmptyString(member.getNickname());
+            case "user_online_status":
+                return member.getOnlineStatus()
+                    .getKey();
+            case "user_game_name":
+                return member.getActivities()
+                    .stream()
+                    .findFirst()
+                    .map(Activity::getName)
+                    .orElse("");
+            case "user_game_url":
+                return member.getActivities()
+                    .stream()
+                    .findFirst()
+                    .map(Activity::getUrl)
+                    .orElse("");
+            case "user_boost_status":
+                return getBoolean(member.getTimeBoosted() != null);
+            default:
+                break;
+        }
+
+        if (member.getRoles()
+            .isEmpty()) return "";
+
+        Role topSelectedRole = DiscordSRV.getPlugin()
+            .getTopSelectedRole(member);
+        if (topSelectedRole != null) {
+            switch (identifier) {
+                case "user_top_selected_role_id":
+                    return topSelectedRole.getId();
+                case "user_top_selected_role_name":
+                    return topSelectedRole.getName();
+                case "user_top_selected_role_color_hex":
+                    return applyOrEmptyString(topSelectedRole.getColorRaw(), PlaceholderUtil::getHex);
+                case "user_top_selected_role_color_code":
+                    return colorCode(topSelectedRole.getColorRaw());
+                default:
+                    break;
+            }
+        }
+
+        Role topRole = DiscordUtil.getTopRole(member);
+        if (topRole != null) {
+            switch (identifier) {
+                case "user_top_role_id":
+                    return topRole.getId();
+                case "user_top_role_name":
+                    return topRole.getName();
+                case "user_top_role_color_hex":
+                    return applyOrEmptyString(topRole.getColorRaw(), PlaceholderUtil::getHex);
+                case "user_top_role_color_code":
+                    return colorCode(topRole.getColorRaw());
+                default:
+                    break;
+            }
+        }
+
+        return null;
+    }
+
+    private static String colorCode(int color) {
+        try {
+            String legacy = MessageUtil.toLegacy(
+                Component.text(0)
+                    .color(TextColor.color(color)));
+            return legacy.substring(0, legacy.length() - 1);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static String getHex(int color) {
+        return String.format("#%02x%02x%02x", (color & 0xFF0000) >> 16, (color & 0x00FF00) >> 8, (color & 0x0000FF));
+    }
+
+    private static <T> String applyOrEmptyString(T input, Function<T, String> function) {
+        if (input == null) return "";
+        String output = function.apply(input);
+        return orEmptyString(output);
+    }
+
+    private static String orEmptyString(String input) {
+        return StringUtils.isNotBlank(input) ? input : "";
+    }
+
+    private static String getBoolean(boolean input) {
+        return input ? "true" : "false";
     }
 
     /**

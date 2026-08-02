@@ -10,6 +10,7 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.world.WorldServer;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Server;
 import org.bukkit.Sound;
@@ -64,15 +65,26 @@ public class CraftPlayer implements Player {
 
     @Override
     public boolean isOp() {
-        return true;
+        return handle.mcServer.getConfigurationManager()
+            .func_152596_g(handle.getGameProfile());
     }
 
     @Override
-    public void setOp(boolean value) {}
+    public void setOp(boolean value) {
+        if (value) {
+            handle.mcServer.getConfigurationManager()
+                .func_152605_a(handle.getGameProfile());
+        } else {
+            handle.mcServer.getConfigurationManager()
+                .func_152610_b(handle.getGameProfile());
+        }
+    }
 
     @Override
     public boolean hasPlayedBefore() {
-        return true;
+        return Bukkit.getServer() != null && Bukkit.getServer()
+            .getOfflinePlayer(uuid)
+            .hasPlayedBefore();
     }
 
     @Override
@@ -115,7 +127,7 @@ public class CraftPlayer implements Player {
 
     @Override
     public Server getServer() {
-        return null;
+        return Bukkit.getServer();
     }
 
     @Override
@@ -145,13 +157,30 @@ public class CraftPlayer implements Player {
 
     @Override
     public boolean isPermissionSet(String name) {
-        return false;
+        return name != null && name.startsWith("discordsrv.");
     }
 
+    /**
+     * Mirrors the {@code default} values declared in DiscordSRV's plugin.yml for a vanilla server that has no
+     * permission plugin. OPs are granted everything; everyone else only gets the permissions DiscordSRV defaults to
+     * {@code true} (chat, link, linked, help, discord, nicknamesync, player).
+     */
     @Override
     public boolean hasPermission(String name) {
-        return handle.mcServer.getConfigurationManager()
-            .func_152596_g(handle.getGameProfile());
+        if (name == null) return false;
+        if (isOp()) return true;
+        switch (name) {
+            case "discordsrv.player":
+            case "discordsrv.chat":
+            case "discordsrv.help":
+            case "discordsrv.link":
+            case "discordsrv.linked":
+            case "discordsrv.discord":
+            case "discordsrv.nicknamesync":
+                return true;
+            default:
+                return false;
+        }
     }
 
     @Override

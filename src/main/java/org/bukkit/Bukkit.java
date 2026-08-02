@@ -102,7 +102,9 @@ public final class Bukkit {
     }
 
     public static boolean isPrimaryThread() {
-        return true;
+        return "Server thread".equals(
+            Thread.currentThread()
+                .getName());
     }
 
     public static OfflinePlayer[] getOfflinePlayers() {

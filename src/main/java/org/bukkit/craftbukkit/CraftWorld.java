@@ -23,7 +23,7 @@ public class CraftWorld implements World {
 
     @Override
     public File getWorldFolder() {
-        return null;
+        return world.getChunkSaveLocation();
     }
 
     @Override
