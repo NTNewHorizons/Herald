@@ -1590,6 +1590,9 @@ public class DiscordSRV extends JavaPlugin {
         // set ready status
         if (jda.getStatus() == JDA.Status.CONNECTED) {
             isReady = true;
+            DiscordSRV.info(
+                "DiscordSRV connected and ready as " + jda.getSelfUser()
+                    .getName());
             api.callEvent(new DiscordReadyEvent());
         }
     }

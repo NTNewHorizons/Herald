@@ -1,8 +1,11 @@
 package org.bukkit.plugin.java;
 
 import java.io.File;
+import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 import org.bukkit.Server;
@@ -37,7 +40,7 @@ public abstract class JavaPlugin implements Plugin, CommandExecutor, TabComplete
         globalServer = server;
         globalDescription = description;
         globalDataFolder = dataFolder;
-        globalLogger = Logger.getLogger(description.getName());
+        globalLogger = new Log4jBackedLogger(description.getName());
     }
 
     @Override
@@ -106,5 +109,43 @@ public abstract class JavaPlugin implements Plugin, CommandExecutor, TabComplete
             return (T) instance;
         }
         return null;
+    }
+
+    private static final class Log4jBackedLogger extends Logger {
+
+        private final org.apache.logging.log4j.Logger delegate;
+
+        private Log4jBackedLogger(String name) {
+            super(name, null);
+            setLevel(Level.ALL);
+            setUseParentHandlers(false);
+            this.delegate = org.apache.logging.log4j.LogManager.getLogger(name);
+        }
+
+        @Override
+        public void log(LogRecord record) {
+            if (record == null || !isLoggable(record.getLevel())) return;
+
+            String message = record.getMessage();
+            Object[] parameters = record.getParameters();
+            if (parameters != null && parameters.length > 0) {
+                try {
+                    message = MessageFormat.format(message, parameters);
+                } catch (IllegalArgumentException ignored) {}
+            }
+
+            Throwable thrown = record.getThrown();
+            int level = record.getLevel()
+                .intValue();
+            if (level >= Level.SEVERE.intValue()) {
+                delegate.error(message, thrown);
+            } else if (level >= Level.WARNING.intValue()) {
+                delegate.warn(message, thrown);
+            } else if (level >= Level.INFO.intValue()) {
+                delegate.info(message, thrown);
+            } else {
+                delegate.debug(message, thrown);
+            }
+        }
     }
 }

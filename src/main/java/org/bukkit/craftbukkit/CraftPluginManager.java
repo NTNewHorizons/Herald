@@ -1,12 +1,12 @@
 package org.bukkit.craftbukkit;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -20,11 +20,13 @@ import org.bukkit.plugin.RegisteredListener;
 
 public class CraftPluginManager implements PluginManager {
 
-    private final Map<Plugin, List<Listener>> listenersByPlugin = new HashMap<>();
+    // DiscordSRV registers listeners from its asynchronous initialization thread while Forge dispatches events on
+    // the server thread. The registry therefore needs safe publication across threads.
+    private final Map<Plugin, List<Listener>> listenersByPlugin = new ConcurrentHashMap<>();
 
     @Override
     public void registerEvents(Listener listener, Plugin plugin) {
-        listenersByPlugin.computeIfAbsent(plugin, k -> new ArrayList<>())
+        listenersByPlugin.computeIfAbsent(plugin, k -> new CopyOnWriteArrayList<>())
             .add(listener);
     }
 
@@ -104,7 +106,7 @@ public class CraftPluginManager implements PluginManager {
     @Override
     public void registerEvent(Class<? extends Event> eventClass, Listener listener, EventPriority priority,
         EventExecutor executor, Plugin plugin, boolean ignoreCancelled) {
-        listenersByPlugin.computeIfAbsent(plugin, k -> new ArrayList<>())
+        listenersByPlugin.computeIfAbsent(plugin, k -> new CopyOnWriteArrayList<>())
             .add(listener);
     }
 }

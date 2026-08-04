@@ -4,6 +4,7 @@ import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Collections;
 
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
@@ -53,7 +54,6 @@ public class HeraldDiscordSRV {
     private static HeraldDiscordSRV instance;
 
     private DiscordSRV discordSRV;
-    private boolean enabled;
     private CraftServer craftServer;
 
     public HeraldDiscordSRV() {
@@ -83,6 +83,7 @@ public class HeraldDiscordSRV {
 
         try {
             discordSRV = new DiscordSRV();
+            applyForgeConfigOverrides();
             discordSRV.setEnabled(true);
         } catch (Exception e) {
             log.error("Failed to create DiscordSRV instance", e);
@@ -104,11 +105,28 @@ public class HeraldDiscordSRV {
                     .bus()
                     .register(this);
                 discordSRV.onEnable();
-                this.enabled = discordSRV.isEnabled();
-                log.info("Herald DiscordSRV initialized: enabled=" + enabled);
+                log.info("Herald DiscordSRV startup scheduled; waiting for Discord connection");
             } catch (Exception e) {
                 log.error("Failed to enable DiscordSRV", e);
             }
+        }
+    }
+
+    private void applyForgeConfigOverrides() {
+        if (StringUtils.isNotBlank(Config.discordToken)) {
+            DiscordSRV.config()
+                .setRuntimeValue("BotToken", Config.discordToken.trim());
+            log.info("Using Discord bot token from config/herald.cfg");
+        }
+        if (StringUtils.isNotBlank(Config.discordChatChannelId)) {
+            DiscordSRV.config()
+                .setRuntimeValue("Channels", Collections.singletonMap("global", Config.discordChatChannelId.trim()));
+            log.info("Using Discord chat channel from config/herald.cfg");
+        }
+        if (StringUtils.isNotBlank(Config.discordConsoleChannelId)) {
+            DiscordSRV.config()
+                .setRuntimeValue("DiscordConsoleChannelId", Config.discordConsoleChannelId.trim());
+            log.info("Using Discord console channel from config/herald.cfg");
         }
     }
 
@@ -347,7 +365,6 @@ public class HeraldDiscordSRV {
             craftServer.getScheduler()
                 .shutdown();
         }
-        this.enabled = false;
     }
 
     public DiscordSRV getDiscordSRV() {
@@ -355,7 +372,7 @@ public class HeraldDiscordSRV {
     }
 
     public boolean isEnabled() {
-        return enabled;
+        return discordSRV != null && discordSRV.isEnabled() && DiscordSRV.isReady;
     }
 
     private InetAddress getPlayerAddress(EntityPlayerMP player) {

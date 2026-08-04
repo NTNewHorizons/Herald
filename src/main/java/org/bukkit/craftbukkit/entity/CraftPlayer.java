@@ -161,14 +161,13 @@ public class CraftPlayer implements Player {
     }
 
     /**
-     * Mirrors the {@code default} values declared in DiscordSRV's plugin.yml for a vanilla server that has no
-     * permission plugin. OPs are granted everything; everyone else only gets the permissions DiscordSRV defaults to
-     * {@code true} (chat, link, linked, help, discord, nicknamesync, player).
+     * Mirrors the {@code default} values declared in DiscordSRV's plugin.yml for a Forge server that has no Bukkit
+     * permission plugin. In particular, Bukkit's {@code default: false} permissions must remain false for operators;
+     * otherwise every operator is treated as having {@code discordsrv.silentjoin} and {@code discordsrv.silentquit}.
      */
     @Override
     public boolean hasPermission(String name) {
         if (name == null) return false;
-        if (isOp()) return true;
         switch (name) {
             case "discordsrv.player":
             case "discordsrv.chat":
@@ -178,6 +177,22 @@ public class CraftPlayer implements Player {
             case "discordsrv.discord":
             case "discordsrv.nicknamesync":
                 return true;
+            case "discordsrv.admin":
+            case "discordsrv.updatenotification":
+            case "discordsrv.bcast":
+            case "discordsrv.reload":
+            case "discordsrv.debug":
+            case "discordsrv.link.others":
+            case "discordsrv.linked.others":
+            case "discordsrv.unlink":
+            case "discordsrv.unlink.others":
+            case "discordsrv.resync":
+            case "discordsrv.groupsyncwithcommands":
+            case "discordsrv.language":
+                return isOp();
+            case "discordsrv.silentjoin":
+            case "discordsrv.silentquit":
+                return false;
             default:
                 return false;
         }
