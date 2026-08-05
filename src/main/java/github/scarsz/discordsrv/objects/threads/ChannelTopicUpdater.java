@@ -33,35 +33,60 @@ public class ChannelTopicUpdater extends Thread {
 
     @Override
     public void run() {
-        while (true) {
-            int rate = DiscordSRV.config()
-                .getInt("ChannelTopicUpdaterRateInMinutes");
-            if (rate < 10) rate = 10;
-
-            if (DiscordUtil.getJda() != null) {
-                String chatTopic = PlaceholderUtil
-                    .replaceChannelUpdaterPlaceholders(LangUtil.Message.CHAT_CHANNEL_TOPIC.toString());
-                if (StringUtils.isNotBlank(chatTopic)) DiscordUtil.setTextChannelTopic(
-                    DiscordSRV.getPlugin()
-                        .getMainTextChannel(),
-                    chatTopic);
-
-                String consoleTopic = PlaceholderUtil
-                    .replaceChannelUpdaterPlaceholders(LangUtil.Message.CONSOLE_CHANNEL_TOPIC.toString());
-                if (StringUtils.isNotBlank(consoleTopic)) DiscordUtil.setTextChannelTopic(
-                    DiscordSRV.getPlugin()
-                        .getConsoleChannel(),
-                    consoleTopic);
-            } else {
-                DiscordSRV.debug("Skipping channel topic update cycle, JDA was null");
-            }
-
+        while (!isInterrupted()) {
+            boolean updated = runUpdateCycle();
+            int delay = updated ? getUpdateRate() : 1;
             try {
-                Thread.sleep(TimeUnit.MINUTES.toMillis(rate));
+                Thread.sleep(TimeUnit.MINUTES.toMillis(delay));
             } catch (InterruptedException e) {
                 DiscordSRV.debug("Broke from Channel Topic Updater thread: sleep interrupted");
+                interrupt();
                 return;
             }
+        }
+    }
+
+    private boolean runUpdateCycle() {
+        if (DiscordUtil.getJda() == null) {
+            DiscordSRV.debug("Skipping channel topic update cycle, JDA was null; retrying in one minute");
+            return false;
+        }
+
+        boolean successful = true;
+        try {
+            String chatTopic = PlaceholderUtil
+                .replaceChannelUpdaterPlaceholders(LangUtil.Message.CHAT_CHANNEL_TOPIC.toString());
+            if (StringUtils.isNotBlank(chatTopic)) DiscordUtil.setTextChannelTopic(
+                DiscordSRV.getPlugin()
+                    .getMainTextChannel(),
+                chatTopic);
+        } catch (RuntimeException exception) {
+            successful = false;
+            DiscordSRV.error("Chat channel topic update failed; retrying next cycle", exception);
+        }
+
+        try {
+            String consoleTopic = PlaceholderUtil
+                .replaceChannelUpdaterPlaceholders(LangUtil.Message.CONSOLE_CHANNEL_TOPIC.toString());
+            if (StringUtils.isNotBlank(consoleTopic)) DiscordUtil.setTextChannelTopic(
+                DiscordSRV.getPlugin()
+                    .getConsoleChannel(),
+                consoleTopic);
+        } catch (RuntimeException exception) {
+            successful = false;
+            DiscordSRV.error("Console channel topic update failed; retrying next cycle", exception);
+        }
+        return successful;
+    }
+
+    private int getUpdateRate() {
+        try {
+            int rate = DiscordSRV.config()
+                .getInt("ChannelTopicUpdaterRateInMinutes");
+            return Math.max(rate, 10);
+        } catch (RuntimeException exception) {
+            DiscordSRV.error("Failed to read channel topic updater rate; using ten minutes", exception);
+            return 10;
         }
     }
 

@@ -1521,27 +1521,8 @@ public class DiscordSRV extends JavaPlugin {
             }
         }
 
-        // start channel topic updater
-        if (channelTopicUpdater != null) {
-            if (channelTopicUpdater.getState() != Thread.State.NEW) {
-                channelTopicUpdater.interrupt();
-                channelTopicUpdater = new ChannelTopicUpdater();
-            }
-        } else {
-            channelTopicUpdater = new ChannelTopicUpdater();
-        }
-        channelTopicUpdater.start();
-
-        // start channel updater
-        if (channelUpdater != null) {
-            if (channelUpdater.getState() != Thread.State.NEW) {
-                channelUpdater.interrupt();
-                channelUpdater = new ChannelUpdater();
-            }
-        } else {
-            channelUpdater = new ChannelUpdater();
-        }
-        channelUpdater.start();
+        // Herald starts the channel updaters from FMLServerStartedEvent. Starting them here races Forge's creation of
+        // ServerConfigurationManager, which some channel placeholders require.
 
         // enable metrics (removed: bstats-bukkit depends on the real Bukkit API which Herald does not provide)
 
@@ -1597,6 +1578,22 @@ public class DiscordSRV extends JavaPlugin {
         }
     }
 
+    /**
+     * Recreates both channel updater threads. Herald calls this once Forge has fully started the Minecraft server and
+     * again after a configuration reload, so a previously failed or terminated updater is always recovered.
+     */
+    public synchronized void restartChannelUpdaters() {
+        if (shuttingDown) return;
+
+        if (channelTopicUpdater != null) channelTopicUpdater.interrupt();
+        if (channelUpdater != null) channelUpdater.interrupt();
+
+        channelTopicUpdater = new ChannelTopicUpdater();
+        channelUpdater = new ChannelUpdater();
+        channelTopicUpdater.start();
+        channelUpdater.start();
+    }
+
     @Override
     public void onDisable() {
         shuttingDown = true;
@@ -1642,8 +1639,10 @@ public class DiscordSRV extends JavaPlugin {
                             .replace("%timestamp%", shutdownTimestamp));
                 }
 
-                for (ChannelUpdater.UpdaterChannel updaterChannel : getChannelUpdater().getUpdaterChannels()) {
-                    updaterChannel.updateToShutdownFormat();
+                if (getChannelUpdater() != null) {
+                    for (ChannelUpdater.UpdaterChannel updaterChannel : getChannelUpdater().getUpdaterChannels()) {
+                        updaterChannel.updateToShutdownFormat();
+                    }
                 }
 
                 // we're no longer ready

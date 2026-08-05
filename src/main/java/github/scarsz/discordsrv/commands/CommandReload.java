@@ -47,11 +47,8 @@ public class CommandReload {
         DiscordSRV.getPlugin()
             .reloadAllowedMentions();
         DiscordSRV.api.updateSlashCommands();
-        if (DiscordSRV.getPlugin()
-            .getChannelUpdater() != null)
-            DiscordSRV.getPlugin()
-                .getChannelUpdater()
-                .reload();
+        DiscordSRV.getPlugin()
+            .restartChannelUpdaters();
         if (DiscordSRV.getPlugin()
             .getAlertListener() != null)
             DiscordSRV.getPlugin()

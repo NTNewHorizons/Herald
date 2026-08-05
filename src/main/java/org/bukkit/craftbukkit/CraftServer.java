@@ -99,7 +99,8 @@ public class CraftServer implements Server {
 
     @Override
     public int getMaxPlayers() {
-        return console.getMaxPlayers();
+        ServerConfigurationManager manager = getConfigurationManager();
+        return manager != null ? manager.getMaxPlayers() : 0;
     }
 
     @Override

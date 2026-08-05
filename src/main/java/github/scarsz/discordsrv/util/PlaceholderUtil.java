@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -362,61 +363,87 @@ public class PlaceholderUtil {
         // set PAPI placeholders
         input = PlaceholderUtil.replacePlaceholdersToDiscord(input);
 
-        final Map<String, String> mem = MemUtil.get();
+        if (input.contains("%time%") || input.contains("%date%")) {
+            input = input.replaceAll("%time%|%date%", notNull(TimeUtil.timeStamp()));
+        }
+        input = replaceIfPresent(
+            input,
+            "%playercount%",
+            () -> Integer.toString(
+                PlayerUtil.getOnlinePlayers(true)
+                    .size()));
+        input = replaceIfPresent(input, "%playermax%", () -> Integer.toString(Bukkit.getMaxPlayers()));
+        input = replaceIfPresent(input, "%totalplayers%", () -> Integer.toString(DiscordSRV.getTotalPlayerCount()));
+        input = replaceIfPresent(
+            input,
+            "%uptimemins%",
+            () -> Long.toString(
+                TimeUnit.MILLISECONDS.toMinutes(
+                    System.currentTimeMillis() - DiscordSRV.getPlugin()
+                        .getStartTime())));
+        input = replaceIfPresent(
+            input,
+            "%uptimehours%",
+            () -> Long.toString(
+                TimeUnit.MILLISECONDS.toHours(
+                    System.currentTimeMillis() - DiscordSRV.getPlugin()
+                        .getStartTime())));
+        input = replaceIfPresent(
+            input,
+            "%uptimedays%",
+            () -> Long.toString(
+                TimeUnit.MILLISECONDS.toDays(
+                    System.currentTimeMillis() - DiscordSRV.getPlugin()
+                        .getStartTime())));
+        input = replaceIfPresent(input, "%timestamp%", () -> Long.toString(System.currentTimeMillis() / 1000));
+        input = replaceIfPresent(
+            input,
+            "%starttimestamp%",
+            () -> Long.toString(
+                TimeUnit.MILLISECONDS.toSeconds(
+                    DiscordSRV.getPlugin()
+                        .getStartTime())));
+        input = replaceIfPresent(
+            input,
+            "%motd%",
+            () -> StringUtils.isNotBlank(Bukkit.getMotd()) ? MessageUtil.strip(Bukkit.getMotd()) : "");
+        input = replaceIfPresent(input, "%serverversion%", Bukkit::getBukkitVersion);
 
-        input = input.replaceAll("%time%|%date%", notNull(TimeUtil.timeStamp()))
-            .replace(
-                "%playercount%",
-                notNull(
-                    Integer.toString(
-                        PlayerUtil.getOnlinePlayers(true)
-                            .size())))
-            .replace("%playermax%", notNull(Integer.toString(Bukkit.getMaxPlayers())))
-            .replace("%totalplayers%", notNull(Integer.toString(DiscordSRV.getTotalPlayerCount())))
-            .replace(
-                "%uptimemins%",
-                notNull(
-                    Long.toString(
-                        TimeUnit.MILLISECONDS.toMinutes(
-                            System.currentTimeMillis() - DiscordSRV.getPlugin()
-                                .getStartTime()))))
-            .replace(
-                "%uptimehours%",
-                notNull(
-                    Long.toString(
-                        TimeUnit.MILLISECONDS.toHours(
-                            System.currentTimeMillis() - DiscordSRV.getPlugin()
-                                .getStartTime()))))
-            .replace(
-                "%uptimedays%",
-                notNull(
-                    Long.toString(
-                        TimeUnit.MILLISECONDS.toDays(
-                            System.currentTimeMillis() - DiscordSRV.getPlugin()
-                                .getStartTime()))))
-            .replace("%timestamp%", notNull(Long.toString(System.currentTimeMillis() / 1000)))
-            .replace(
-                "%starttimestamp%",
-                notNull(
-                    Long.toString(
-                        TimeUnit.MILLISECONDS.toSeconds(
-                            DiscordSRV.getPlugin()
-                                .getStartTime()))))
-            .replace(
-                "%motd%",
-                notNull(StringUtils.isNotBlank(Bukkit.getMotd()) ? MessageUtil.strip(Bukkit.getMotd()) : ""))
-            .replace("%serverversion%", notNull(Bukkit.getBukkitVersion()))
-            .replace("%freememory%", notNull(mem.get("freeMB")))
-            .replace("%usedmemory%", notNull(mem.get("usedMB")))
-            .replace("%totalmemory%", notNull(mem.get("totalMB")))
-            .replace("%maxmemory%", notNull(mem.get("maxMB")))
-            .replace("%freememorygb%", notNull(mem.get("freeGB")))
-            .replace("%usedmemorygb%", notNull(mem.get("usedGB")))
-            .replace("%totalmemorygb%", notNull(mem.get("totalGB")))
-            .replace("%maxmemorygb%", notNull(mem.get("maxGB")))
-            .replace("%tps%", notNull(Lag.getTPSString()));
+        if (containsAny(
+            input,
+            "%freememory%",
+            "%usedmemory%",
+            "%totalmemory%",
+            "%maxmemory%",
+            "%freememorygb%",
+            "%usedmemorygb%",
+            "%totalmemorygb%",
+            "%maxmemorygb%")) {
+            final Map<String, String> mem = MemUtil.get();
+            input = input.replace("%freememory%", notNull(mem.get("freeMB")))
+                .replace("%usedmemory%", notNull(mem.get("usedMB")))
+                .replace("%totalmemory%", notNull(mem.get("totalMB")))
+                .replace("%maxmemory%", notNull(mem.get("maxMB")))
+                .replace("%freememorygb%", notNull(mem.get("freeGB")))
+                .replace("%usedmemorygb%", notNull(mem.get("usedGB")))
+                .replace("%totalmemorygb%", notNull(mem.get("totalGB")))
+                .replace("%maxmemorygb%", notNull(mem.get("maxGB")));
+        }
+        input = replaceIfPresent(input, "%tps%", Lag::getTPSString);
 
         return input;
+    }
+
+    private static String replaceIfPresent(String input, String placeholder, Supplier<?> value) {
+        if (!input.contains(placeholder)) return input;
+        return input.replace(placeholder, notNull(value.get()));
+    }
+
+    private static boolean containsAny(String input, String... placeholders) {
+        for (String placeholder : placeholders) {
+            if (input.contains(placeholder)) return true;
+        }
+        return false;
     }
 
     public static String notNull(Object object) {

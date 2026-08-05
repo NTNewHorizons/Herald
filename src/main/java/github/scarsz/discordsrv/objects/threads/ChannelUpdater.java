@@ -17,6 +17,7 @@
 package github.scarsz.discordsrv.objects.threads;
 
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
 
 import net.dv8tion.jda.api.entities.GuildChannel;
@@ -36,84 +37,118 @@ import lombok.Getter;
 public class ChannelUpdater extends Thread {
 
     @Getter
-    private final Set<UpdaterChannel> updaterChannels = new HashSet<>();
+    private final Set<UpdaterChannel> updaterChannels = new CopyOnWriteArraySet<>();
+    private volatile boolean reloadPending = true;
 
     public ChannelUpdater() {
         setName("DiscordSRV - Channel Updater");
     }
 
-    public void reload() {
-        // Deleting and recreating the list of updater channels
-        this.updaterChannels.clear();
-
-        final List<Map<?, ?>> configEntries = DiscordSRV.config()
-            .get("ChannelUpdater");
-
-        for (final Map<?, ?> configEntry : configEntries) {
-            Dynamic map = Dynamic.from(configEntry);
-            final String channelId = map.get("ChannelId")
-                .maybe()
-                .asString()
-                .orElse("");
-            final String format = map.get("Format")
-                .maybe()
-                .asString()
-                .orElse("");
-            final Optional<Integer> optionalInteger = map.get("UpdateInterval")
-                .maybe()
-                .as(Integer.class);
-            final String shutdownFormat = map.get("ShutdownFormat")
-                .maybe()
-                .asString()
-                .orElse("");
-            final int interval;
-
-            if (channelId.equals("0000000000000000")) continue; // Ignore default
-
-            if (StringUtils.isAnyBlank(channelId, format)) {
-                DiscordSRV.debug(
-                    Debug.CHANNEL_UPDATER,
-                    "Failed to initialise a ChannelUpdater entry: Missing either ChannelId or Format");
-                continue;
-            }
-            if (optionalInteger.isPresent()) {
-                interval = optionalInteger.get();
-            } else {
-                DiscordSRV.warning(
-                    "Update interval in minutes provided for Updater Channel " + channelId
-                        + " was blank or invalid, using the minimum value of 10");
-                interval = 10;
-            }
-
-            final GuildChannel channel = DiscordUtil.getJda()
-                .getGuildChannelById(channelId);
-            if (channel == null) {
-                DiscordSRV.error("ChannelUpdater entry " + channelId + " has an invalid id");
-                continue;
-            }
-            DiscordSRV.debug(Debug.CHANNEL_UPDATER, "Initialising ChannelUpdater entry " + channelId);
-            UpdaterChannel updaterChannel = new UpdaterChannel(channel, format, interval, shutdownFormat);
-            this.updaterChannels.add(updaterChannel);
-            updaterChannel.update();
+    public synchronized boolean reload() {
+        if (DiscordUtil.getJda() == null) {
+            DiscordSRV.debug(Debug.CHANNEL_UPDATER, "Postponing ChannelUpdater reload because JDA is not ready");
+            reloadPending = true;
+            return false;
         }
+
+        final Set<UpdaterChannel> configuredChannels = new HashSet<>();
+        try {
+            final List<Map<?, ?>> configEntries = DiscordSRV.config()
+                .get("ChannelUpdater");
+
+            if (configEntries != null) {
+                for (final Map<?, ?> configEntry : configEntries) {
+                    try {
+                        Dynamic map = Dynamic.from(configEntry);
+                        final String channelId = map.get("ChannelId")
+                            .maybe()
+                            .asString()
+                            .orElse("");
+                        final String format = map.get("Format")
+                            .maybe()
+                            .asString()
+                            .orElse("");
+                        final Optional<Integer> optionalInteger = map.get("UpdateInterval")
+                            .maybe()
+                            .as(Integer.class);
+                        final String shutdownFormat = map.get("ShutdownFormat")
+                            .maybe()
+                            .asString()
+                            .orElse("");
+                        final int interval;
+
+                        if (channelId.equals("0000000000000000")) continue; // Ignore default
+
+                        if (StringUtils.isAnyBlank(channelId, format)) {
+                            DiscordSRV.debug(
+                                Debug.CHANNEL_UPDATER,
+                                "Failed to initialise a ChannelUpdater entry: Missing either ChannelId or Format");
+                            continue;
+                        }
+                        if (optionalInteger.isPresent()) {
+                            interval = optionalInteger.get();
+                        } else {
+                            DiscordSRV.warning(
+                                "Update interval in minutes provided for Updater Channel " + channelId
+                                    + " was blank or invalid, using the minimum value of 10");
+                            interval = 10;
+                        }
+
+                        final GuildChannel channel = DiscordUtil.getJda()
+                            .getGuildChannelById(channelId);
+                        if (channel == null) {
+                            DiscordSRV.error("ChannelUpdater entry " + channelId + " has an invalid id");
+                            continue;
+                        }
+                        DiscordSRV.debug(Debug.CHANNEL_UPDATER, "Initialising ChannelUpdater entry " + channelId);
+                        configuredChannels.add(new UpdaterChannel(channel, format, interval, shutdownFormat));
+                    } catch (RuntimeException exception) {
+                        DiscordSRV.error("Failed to initialise a ChannelUpdater entry; skipping it", exception);
+                    }
+                }
+            }
+        } catch (RuntimeException exception) {
+            DiscordSRV.error("Failed to reload ChannelUpdater configuration; retrying next cycle", exception);
+            reloadPending = true;
+            return false;
+        }
+
+        updaterChannels.clear();
+        updaterChannels.addAll(configuredChannels);
+        reloadPending = false;
+        for (final UpdaterChannel channel : updaterChannels) {
+            try {
+                channel.update();
+            } catch (RuntimeException exception) {
+                channel.retrySoon();
+                DiscordSRV.error("ChannelUpdater update failed; retrying next cycle", exception);
+            }
+        }
+        return true;
     }
 
     @Override
     public void run() {
-        reload();
-        for (final UpdaterChannel channel : this.updaterChannels) {
-            channel.update();
-        }
-        while (true) {
+        while (!isInterrupted()) {
             try {
-                Thread.sleep(TimeUnit.MINUTES.toMillis(1));
-
-                for (final UpdaterChannel channel : this.updaterChannels) {
-                    channel.performTick();
+                if (reloadPending) {
+                    reload();
+                } else {
+                    for (final UpdaterChannel channel : updaterChannels) {
+                        try {
+                            channel.performTick();
+                        } catch (RuntimeException exception) {
+                            DiscordSRV.error("ChannelUpdater update failed; retrying next cycle", exception);
+                        }
+                    }
                 }
+                Thread.sleep(TimeUnit.MINUTES.toMillis(1));
             } catch (InterruptedException e) {
                 DiscordSRV.debug(Debug.CHANNEL_UPDATER, "Broke from Channel Updater thread: sleep interrupted");
+                interrupt();
                 return;
+            } catch (RuntimeException exception) {
+                DiscordSRV.error("ChannelUpdater cycle failed; retrying next cycle", exception);
             }
         }
     }
@@ -186,9 +221,18 @@ public class ChannelUpdater extends Thread {
             this.minutesUntilRefresh--;
 
             if (this.minutesUntilRefresh <= 0) {
-                this.update();
-                this.minutesUntilRefresh = this.interval;
+                try {
+                    this.update();
+                    this.minutesUntilRefresh = this.interval;
+                } catch (RuntimeException exception) {
+                    retrySoon();
+                    throw exception;
+                }
             }
+        }
+
+        private void retrySoon() {
+            this.minutesUntilRefresh = 1;
         }
 
         private void parseChannelName(GuildChannel discordChannel, String newName, boolean blockThread) {

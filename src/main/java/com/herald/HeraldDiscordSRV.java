@@ -11,6 +11,7 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.stats.Achievement;
+import net.minecraft.stats.StatisticsFile;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.StatCollector;
 import net.minecraftforge.common.MinecraftForge;
@@ -42,6 +43,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
+import cpw.mods.fml.common.event.FMLServerStartedEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
@@ -138,6 +140,12 @@ public class HeraldDiscordSRV {
         if (discordSRV != null) {
             event.registerServerCommand(new CommandDiscord());
         }
+    }
+
+    public void serverStarted(FMLServerStartedEvent event) {
+        if (discordSRV == null) return;
+        // Channel placeholders may query ServerConfigurationManager, which Forge does not create until this event.
+        discordSRV.restartChannelUpdaters();
     }
 
     @SubscribeEvent
@@ -297,9 +305,13 @@ public class HeraldDiscordSRV {
         CraftPlayer craftPlayer = craftServer != null ? craftServer.getCraftPlayer(player) : null;
         if (craftPlayer == null) return;
 
-        // the event fires before the stat is recorded; skip achievements the player already owns
-        if (player.func_147099_x()
-            .hasAchievementUnlocked(event.achievement)) return;
+        // Forge posts AchievementEvent before StatisticsFile applies the award. Match the checks Minecraft performs
+        // afterward: an already-owned achievement is not new, and an achievement whose parent is still locked will
+        // not be recorded at all. Announcing the latter caused repeat messages on every qualifying action (for
+        // example, Monster Hunter on every mob kill).
+        StatisticsFile statistics = player.func_147099_x();
+        if (statistics == null || statistics.hasAchievementUnlocked(event.achievement)
+            || !statistics.canUnlockAchievement(event.achievement)) return;
 
         String achievementName = resolveAchievementName(event.achievement);
         if (StringUtils.isBlank(achievementName)) return;
