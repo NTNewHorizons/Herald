@@ -1,4 +1,4 @@
-package com.herald;
+package com.ntnh.herald;
 
 import java.io.File;
 import java.net.InetAddress;

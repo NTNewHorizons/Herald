@@ -1,0 +1,1 @@
+Your task is to turn DiscordSRV (Spigot plugin) into Forge 1.7.10 server-side mod. You are provided with GTNH mod template, which is a base for a 1.7.10 mod. You are also provided with DiscordSRV source code. The name of the mod should be Herald, the package should be com.ntnh.herald.

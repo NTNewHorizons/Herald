@@ -1,4 +1,4 @@
-package com.herald;
+package com.ntnh.herald;
 
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;

@@ -1,4 +1,4 @@
-package com.herald;
+package com.ntnh.herald;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,7 +23,7 @@ public class Herald {
     public static final String MODID = "herald";
     public static final Logger LOG = LogManager.getLogger(MODID);
 
-    @SidedProxy(clientSide = "com.herald.ClientProxy", serverSide = "com.herald.CommonProxy")
+    @SidedProxy(clientSide = "com.ntnh.herald.ClientProxy", serverSide = "com.ntnh.herald.CommonProxy")
     public static CommonProxy proxy;
 
     @Mod.EventHandler

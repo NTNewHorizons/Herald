@@ -1,4 +1,4 @@
-package com.herald;
+package com.ntnh.herald;
 
 import java.util.Arrays;
 
