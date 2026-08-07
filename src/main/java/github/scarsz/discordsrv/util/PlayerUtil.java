@@ -91,10 +91,10 @@ public class PlayerUtil {
     }
 
     private static Sound getNotificationSound_modern() throws Throwable {
-        Object key = Class.forName("org.bukkit.NamespacedKey")
+        Object key = Class.forName("relocated.org.bukkit.NamespacedKey")
             .getMethod("minecraft", String.class)
             .invoke(null, "block.note_block.pling");
-        Object soundRegistry = Class.forName("org.bukkit.Registry")
+        Object soundRegistry = Class.forName("relocated.org.bukkit.Registry")
             .getField("SOUNDS")
             .get(null);
         Object sound = soundRegistry.getClass()
@@ -105,7 +105,7 @@ public class PlayerUtil {
 
     @SuppressWarnings("UnstableApiUsage") // method targets legacy versions
     private static Sound getNotificationSound_legacy() throws Throwable {
-        Class<?> soundClass = Class.forName("org.bukkit.Sound");
+        Class<?> soundClass = Class.forName("relocated.org.bukkit.Sound");
         if (!soundClass.isEnum()) throw new IllegalStateException("Sound is not an enum");
         for (Object s : soundClass.getEnumConstants()) {
             Sound sound = (Sound) s;

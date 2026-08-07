@@ -580,10 +580,10 @@ public class DebugUtil {
                 PlayerLoginEvent.class));
 
         try {
-            listenedClasses.add(Class.forName("org.bukkit.event.player.PlayerAdvancementDoneEvent"));
+            listenedClasses.add(Class.forName("relocated.org.bukkit.event.player.PlayerAdvancementDoneEvent"));
         } catch (ClassNotFoundException ignored) {
             try {
-                listenedClasses.add(Class.forName("org.bukkit.event.player.PlayerAchievementAwardedEvent"));
+                listenedClasses.add(Class.forName("relocated.org.bukkit.event.player.PlayerAchievementAwardedEvent"));
             } catch (ClassNotFoundException ignore) {
                 output.add("PlayerAdvancementDoneEvent and PlayerAchievementAwardedEvent both unavailable??");
             }

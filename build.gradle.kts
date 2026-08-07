@@ -1,6 +1,15 @@
 
+
 plugins {
     id("com.gtnewhorizons.gtnhconvention")
+}
+// Other mods on the pack (e.g. ForgeEssentials) bundle real org.bukkit classes, which can break
+// classloading of our Bukkit shims at runtime. Relocate the shims into a private namespace.
+// The ShadowJar type is bundled by the convention plugin but not exposed to this script's
+// classpath, so we configure it reflectively.
+tasks.named("shadowJar").configure {
+    javaClass.getMethod("relocate", String::class.java, String::class.java)
+        .invoke(this, "org.bukkit", "relocated.org.bukkit")
 }
 
 repositories {

@@ -57,7 +57,7 @@ public class PlayerAdvancementDoneListener implements Listener {
         Object gameruleValue = null;
         try {
             gamerule = "show_advancement_messages";
-            Class<?> gameRulesClass = Class.forName("org.bukkit.GameRules");
+            Class<?> gameRulesClass = Class.forName("relocated.org.bukkit.GameRules");
             Method getRuleMethod = gameRulesClass.getDeclaredMethod("getRule", String.class);
             getRuleMethod.setAccessible(true);
             gameruleValue = getRuleMethod.invoke(null, gamerule);
@@ -65,7 +65,7 @@ public class PlayerAdvancementDoneListener implements Listener {
             | IllegalAccessException ignored) {
             gamerule = "announceAdvancements";
             try {
-                Class<?> gameRuleClass = Class.forName("org.bukkit.GameRule");
+                Class<?> gameRuleClass = Class.forName("relocated.org.bukkit.GameRule");
                 gameruleValue = gameRuleClass.getMethod("getByName", String.class)
                     .invoke(null, gamerule);
             } catch (ClassNotFoundException | NoSuchMethodException | InvocationTargetException

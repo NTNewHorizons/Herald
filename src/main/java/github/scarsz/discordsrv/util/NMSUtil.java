@@ -86,13 +86,13 @@ public class NMSUtil {
             }
 
             try {
-                class_Advancement = fixBukkitClass("org.bukkit.craftbukkit.advancement.CraftAdvancement");
+                class_Advancement = fixBukkitClass("relocated.org.bukkit.craftbukkit.advancement.CraftAdvancement");
                 method_Advancement_getHandle = class_Advancement.getMethod("getHandle");
             } catch (ClassNotFoundException ex) {
                 // Unsupported on the server
             }
 
-            class_CraftPlayer = fixBukkitClass("org.bukkit.craftbukkit.entity.CraftPlayer");
+            class_CraftPlayer = fixBukkitClass("relocated.org.bukkit.craftbukkit.entity.CraftPlayer");
             method_CraftPlayer_getHandle = class_CraftPlayer.getMethod("getHandle");
 
             class_ResolvableProfile = getClass("net.minecraft.world.item.component.ResolvableProfile");
@@ -152,7 +152,8 @@ public class NMSUtil {
             } catch (ClassNotFoundException ignored) {}
 
             if (!versionPrefix.isEmpty()) {
-                name = name.replace("org.bukkit.craftbukkit.", "org.bukkit.craftbukkit." + versionPrefix);
+                name = name
+                    .replace("relocated.org.bukkit.craftbukkit.", "relocated.org.bukkit.craftbukkit." + versionPrefix);
                 name = name.replace("net.minecraft.server.", "net.minecraft.server." + versionPrefix);
             }
 
