@@ -241,39 +241,15 @@ public class AlertListener implements Listener, EventListener {
                         continue;
                     }
 
-                    Method method = null;
-                    Class<?> handlerListClass = eventClass;
-                    while (method == null && handlerListClass != null) {
-                        try {
-                            method = handlerListClass.getDeclaredMethod("getHandlerList");
-                        } catch (NoSuchMethodException ignored) {}
-                        handlerListClass = handlerListClass.getSuperclass();
-                    }
-
-                    if (method == null) {
-                        DiscordSRV.error("Could not find getHandlerList method for " + eventClass.getName());
-                        continue;
-                    }
-
-                    Object handlerList = method.invoke(null);
-                    if (!(handlerList instanceof HandlerList)) {
-                        DiscordSRV.error(
-                            "Could not get HandlerList for " + eventClass.getName()
-                                + ": getHandlerList does not actually return a "
-                                + HandlerList.class.getName());
-                        continue;
-                    }
-
-                    if (!handlerLists.add((HandlerList) handlerList)) {
+                    HandlerList handlerList = HandlerList.getHandlerList(eventClass.asSubclass(Event.class));
+                    if (!handlerLists.add(handlerList)) {
                         // Ignore duplicate HandlerLists
                         continue;
                     }
 
-                    addListener((HandlerList) handlerList);
+                    addListener(handlerList);
                 } catch (ClassNotFoundException ignored) {
                     DiscordSRV.warning("Could not find event for alert trigger: " + trigger);
-                } catch (InvocationTargetException | IllegalAccessException e) {
-                    DiscordSRV.error("Could not get HandlerList for event " + trigger, e);
                 }
             }
         }
