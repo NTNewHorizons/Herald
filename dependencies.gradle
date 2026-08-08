@@ -9,6 +9,7 @@ def forgeEssentialsApiJar = tasks.register('forgeEssentialsApiJar', Jar) {
     destinationDirectory = layout.buildDirectory.dir('generated/forgeessentials')
     from({ forgeEssentialsDistributionConfig.collect { zipTree(it) } }) {
         include 'com/forgeessentials/**'
+        include 'net/minecraftforge/permission/**'
         exclude 'com/forgeessentials/thirdparty/**'
     }
 }
@@ -63,7 +64,8 @@ dependencies {
     compileOnly('mysql:mysql-connector-java:8.0.28')
 
     // Optional ForgeEssentials 1.7.10 permissions backend. Its distribution bundles JDA 5 and other libraries that
-    // conflict with DiscordSRV's compile classpath, so compile against a filtered jar containing only FE classes.
+    // conflict with DiscordSRV's compile classpath, so compile against a filtered jar containing only FE classes and
+    // the permission compatibility API that IPermissionsHelper extends.
     add('forgeEssentialsDistribution', 'curse.maven:forge-essentials-74735:6113618')
     compileOnly(files(forgeEssentialsApiJar))
 
