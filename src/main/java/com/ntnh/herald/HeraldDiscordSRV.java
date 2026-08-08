@@ -45,6 +45,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartedEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -133,19 +134,26 @@ public class HeraldDiscordSRV {
     }
 
     public void postInit(FMLPostInitializationEvent event) {
-        // no-op for now
+        processAlert(event);
     }
 
     public void serverStarting(FMLServerStartingEvent event) {
         if (discordSRV != null) {
             event.registerServerCommand(new CommandDiscord());
         }
+        processAlert(event);
     }
 
     public void serverStarted(FMLServerStartedEvent event) {
         if (discordSRV == null) return;
         // Channel placeholders may query ServerConfigurationManager, which Forge does not create until this event.
         discordSRV.restartChannelUpdaters();
+        processAlert(event);
+    }
+
+    @SubscribeEvent
+    public void onNativeEvent(cpw.mods.fml.common.eventhandler.Event event) {
+        processAlert(event);
     }
 
     @SubscribeEvent
@@ -368,7 +376,8 @@ public class HeraldDiscordSRV {
         return result.toString();
     }
 
-    public void shutdown() {
+    public void shutdown(FMLServerStoppingEvent event) {
+        processAlert(event);
         if (discordSRV != null && discordSRV.isEnabled()) {
             log.info("Shutting down Herald DiscordSRV");
             discordSRV.onDisable();
@@ -377,6 +386,12 @@ public class HeraldDiscordSRV {
             craftServer.getScheduler()
                 .shutdown();
         }
+    }
+
+    private void processAlert(Object event) {
+        if (discordSRV == null || !discordSRV.isEnabled() || discordSRV.getAlertListener() == null) return;
+        discordSRV.getAlertListener()
+            .processEvent(event);
     }
 
     public DiscordSRV getDiscordSRV() {

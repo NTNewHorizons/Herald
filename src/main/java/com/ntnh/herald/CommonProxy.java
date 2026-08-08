@@ -36,6 +36,6 @@ public class CommonProxy {
 
     public void serverStopping(FMLServerStoppingEvent event) {
         HeraldDiscordSRV.getInstance()
-            .shutdown();
+            .shutdown(event);
     }
 }

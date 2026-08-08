@@ -300,6 +300,10 @@ public class AlertListener implements Listener, EventListener {
         runAlertsForEvent(event);
     }
 
+    public void processEvent(Object event) {
+        if (event != null) runAlertsForEvent(event);
+    }
+
     private void runAlertsForEvent(Object event) {
         boolean command = event instanceof PlayerCommandPreprocessEvent || event instanceof ServerCommandEvent;
 
