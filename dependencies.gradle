@@ -1,4 +1,4 @@
-def forgeEssentialsDistribution = configurations.create('forgeEssentialsDistribution') {
+def forgeEssentialsDistributionConfig = configurations.create('forgeEssentialsDistribution') {
     canBeConsumed = false
     canBeResolved = true
     transitive = false
@@ -7,7 +7,7 @@ def forgeEssentialsDistribution = configurations.create('forgeEssentialsDistribu
 def forgeEssentialsApiJar = tasks.register('forgeEssentialsApiJar', Jar) {
     archiveFileName = 'forgeessentials-api.jar'
     destinationDirectory = layout.buildDirectory.dir('generated/forgeessentials')
-    from({ forgeEssentialsDistribution.collect { zipTree(it) } }) {
+    from({ forgeEssentialsDistributionConfig.collect { zipTree(it) } }) {
         include 'com/forgeessentials/**'
         exclude 'com/forgeessentials/thirdparty/**'
     }
@@ -64,7 +64,7 @@ dependencies {
 
     // Optional ForgeEssentials 1.7.10 permissions backend. Its distribution bundles JDA 5 and other libraries that
     // conflict with DiscordSRV's compile classpath, so compile against a filtered jar containing only FE classes.
-    forgeEssentialsDistribution('curse.maven:forge-essentials-74735:6113618')
+    add('forgeEssentialsDistribution', 'curse.maven:forge-essentials-74735:6113618')
     compileOnly(files(forgeEssentialsApiJar))
 
     // Misc libraries
