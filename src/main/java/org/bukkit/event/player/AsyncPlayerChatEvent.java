@@ -3,9 +3,11 @@ package org.bukkit.event.player;
 import java.util.Set;
 
 import org.bukkit.entity.Player;
+import org.bukkit.event.HandlerList;
 
 public class AsyncPlayerChatEvent extends PlayerEvent implements org.bukkit.event.Cancellable {
 
+    private static final HandlerList handlers = new HandlerList();
     private String message;
     private boolean cancelled;
 
@@ -34,5 +36,14 @@ public class AsyncPlayerChatEvent extends PlayerEvent implements org.bukkit.even
 
     public Set<Player> getRecipients() {
         return java.util.Collections.emptySet();
+    }
+
+    @Override
+    public HandlerList getHandlers() {
+        return handlers;
+    }
+
+    public static HandlerList getHandlerList() {
+        return handlers;
     }
 }
