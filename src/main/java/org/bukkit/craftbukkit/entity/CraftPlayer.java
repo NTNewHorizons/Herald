@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.play.server.S29PacketSoundEffect;
 import net.minecraft.util.ChatComponentText;
 import net.minecraft.world.WorldServer;
 
@@ -123,7 +124,18 @@ public class CraftPlayer implements Player {
     }
 
     @Override
-    public void playSound(Location location, Sound sound, float volume, float pitch) {}
+    public void playSound(Location location, Sound sound, float volume, float pitch) {
+        if (sound == null || handle.playerNetServerHandler == null) return;
+        Location target = location != null ? location : getLocation();
+        handle.playerNetServerHandler.sendPacket(
+            new S29PacketSoundEffect(
+                sound.getLegacyKey(),
+                target.getX(),
+                target.getY(),
+                target.getZ(),
+                volume,
+                pitch));
+    }
 
     @Override
     public Server getServer() {

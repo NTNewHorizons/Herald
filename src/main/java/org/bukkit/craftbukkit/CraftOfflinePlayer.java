@@ -55,7 +55,6 @@ public class CraftOfflinePlayer implements OfflinePlayer {
 
     @Override
     public boolean hasPlayedBefore() {
-        if (isOnline()) return true;
         try {
             List<World> worlds = Bukkit.getWorlds();
             if (worlds == null || worlds.isEmpty()) return false;
