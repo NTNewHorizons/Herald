@@ -9,6 +9,7 @@ import java.util.Collections;
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.rcon.RConConsoleSource;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.stats.Achievement;
 import net.minecraft.stats.StatisticsFile;
@@ -25,7 +26,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.command.CraftCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
@@ -36,6 +39,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.RemoteServerCommandEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -179,6 +183,7 @@ public class HeraldDiscordSRV {
         PlayerDeathEvent deathEvent = new PlayerDeathEvent(craftPlayer, deathMessage);
         Bukkit.getPluginManager()
             .callEvent(deathEvent);
+        if (deathEvent.isCancelled()) event.setCanceled(true);
     }
 
     private static String resolveDeathMessage(EntityLivingBase entity) {
@@ -208,8 +213,14 @@ public class HeraldDiscordSRV {
             PlayerCommandPreprocessEvent commandEvent = new PlayerCommandPreprocessEvent(craftPlayer, command);
             Bukkit.getPluginManager()
                 .callEvent(commandEvent);
-        } else if (event.sender == MinecraftServer.getServer()) {
-            ServerCommandEvent commandEvent = new ServerCommandEvent(Bukkit.getConsoleSender(), command);
+            if (commandEvent.isCancelled()) event.setCanceled(true);
+        } else {
+            String serverCommand = command.startsWith("/") ? command.substring(1) : command;
+            CommandSender sender = event.sender == MinecraftServer.getServer() ? Bukkit.getConsoleSender()
+                : new CraftCommandSender(event.sender);
+            ServerCommandEvent commandEvent = event.sender instanceof RConConsoleSource
+                ? new RemoteServerCommandEvent(sender, serverCommand)
+                : new ServerCommandEvent(sender, serverCommand);
             Bukkit.getPluginManager()
                 .callEvent(commandEvent);
         }
@@ -237,6 +248,7 @@ public class HeraldDiscordSRV {
         AsyncPlayerChatEvent chatEvent = new AsyncPlayerChatEvent(craftPlayer, event.message);
         Bukkit.getPluginManager()
             .callEvent(chatEvent);
+        if (chatEvent.isCancelled()) event.setCanceled(true);
     }
 
     @SubscribeEvent

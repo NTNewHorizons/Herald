@@ -41,6 +41,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerEvent;
+import org.bukkit.event.server.RemoteServerCommandEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.RegisteredListener;
 import org.jetbrains.annotations.NotNull;
@@ -68,7 +69,8 @@ public class AlertListener implements Listener, EventListener {
         "relocated.org.bukkit.event.player.PlayerChatEvent",
         // We explicitly listen to these events
         "relocated.org.bukkit.event.player.PlayerCommandPreprocessEvent",
-        "relocated.org.bukkit.event.server.ServerCommandEvent");
+        "relocated.org.bukkit.event.server.ServerCommandEvent",
+        "relocated.org.bukkit.event.server.RemoteServerCommandEvent");
     private static final List<String> SYNC_EVENT_NAMES = Arrays.asList(
         // Needs to be sync because block data will be stale by time async task runs
         "relocated.org.bukkit.event.block.BlockBreakEvent");
@@ -297,6 +299,11 @@ public class AlertListener implements Listener, EventListener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerCommand(ServerCommandEvent event) {
+        runAlertsForEvent(event);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onRemoteServerCommand(RemoteServerCommandEvent event) {
         runAlertsForEvent(event);
     }
 

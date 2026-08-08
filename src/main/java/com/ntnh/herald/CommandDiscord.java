@@ -7,11 +7,13 @@ import java.util.List;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.ChatComponentText;
 
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.command.CraftCommandSender;
 import org.bukkit.craftbukkit.command.CraftConsoleCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 
@@ -80,7 +82,8 @@ public class CommandDiscord extends CommandBase {
             }
             return new CraftPlayer((EntityPlayerMP) sender);
         }
-        return CraftConsoleCommandSender.getInstance();
+        if (sender == MinecraftServer.getServer()) return CraftConsoleCommandSender.getInstance();
+        return new CraftCommandSender(sender);
     }
 
     private static PluginCommand createBukkitCommand(DiscordSRV plugin) {
