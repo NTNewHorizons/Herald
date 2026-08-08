@@ -180,34 +180,13 @@ public class CraftPlayer implements Player {
     @Override
     public boolean hasPermission(String name) {
         if (name == null) return false;
-        switch (name) {
-            case "discordsrv.player":
-            case "discordsrv.chat":
-            case "discordsrv.help":
-            case "discordsrv.link":
-            case "discordsrv.linked":
-            case "discordsrv.discord":
-            case "discordsrv.nicknamesync":
-                return true;
-            case "discordsrv.admin":
-            case "discordsrv.updatenotification":
-            case "discordsrv.bcast":
-            case "discordsrv.reload":
-            case "discordsrv.debug":
-            case "discordsrv.link.others":
-            case "discordsrv.linked.others":
-            case "discordsrv.unlink":
-            case "discordsrv.unlink.others":
-            case "discordsrv.resync":
-            case "discordsrv.groupsyncwithcommands":
-            case "discordsrv.language":
-                return isOp();
-            case "discordsrv.silentjoin":
-            case "discordsrv.silentquit":
-                return false;
-            default:
-                return false;
+        if (Bukkit.getServer() != null) {
+            net.milkbowl.vault.permission.Permission permissions = Bukkit.getServer()
+                .getServicesManager()
+                .load(net.milkbowl.vault.permission.Permission.class);
+            if (permissions != null) return permissions.playerHas(null, this, name);
         }
+        return new com.ntnh.herald.permissions.VanillaPermissionBackend().playerHas(this, name);
     }
 
     @Override

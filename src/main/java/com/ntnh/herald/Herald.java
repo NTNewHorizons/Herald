@@ -17,7 +17,8 @@ import cpw.mods.fml.common.event.FMLServerStoppingEvent;
     version = Tags.VERSION,
     name = "Herald",
     acceptedMinecraftVersions = "[1.7.10]",
-    acceptableRemoteVersions = "*")
+    acceptableRemoteVersions = "*",
+    dependencies = "after:ForgeEssentials")
 public class Herald {
 
     public static final String MODID = "herald";

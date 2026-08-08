@@ -1,17 +1,24 @@
 package net.milkbowl.vault.permission;
 
+import cpw.mods.fml.common.Loader;
+
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
+import com.ntnh.herald.permissions.PermissionBackend;
+import com.ntnh.herald.permissions.VanillaPermissionBackend;
+
 /**
- * Forge-native stand-in for the Vault permission API. Vault does not exist on Forge 1.7.10, so the only group-like
- * distinction available is operator status. This provider is what powers DiscordSRV's group-role synchronization
- * ({@code op} / {@code default} groups) and the {@code %primarygroup%} placeholder.
+ * Forge-native stand-in for the Vault permission API. It delegates to ForgeEssentials when its permissions module is
+ * available, with an {@code op}/{@code default} fallback for standalone Herald servers.
  */
 public class Permission {
 
+    private final PermissionBackend fallback = new VanillaPermissionBackend();
+    private volatile PermissionBackend forgeEssentials;
+
     public String getName() {
-        return "Herald";
+        return backend().getName();
     }
 
     public boolean isEnabled() {
@@ -27,40 +34,55 @@ public class Permission {
     }
 
     public String getPrimaryGroup(Player player) {
-        return groupFor(player);
+        return backend().getPrimaryGroup(player);
     }
 
     public String getPrimaryGroup(String world, OfflinePlayer player) {
-        return groupFor(player);
+        return backend().getPrimaryGroup(player);
     }
 
     public String[] getPlayerGroups(String world, OfflinePlayer player) {
-        return new String[] { groupFor(player) };
+        return backend().getPlayerGroups(player);
     }
 
     public String[] getGroups() {
-        return new String[] { "default", "op" };
+        return backend().getGroups();
     }
 
     public boolean playerInGroup(String world, OfflinePlayer player, String group) {
-        return groupFor(player).equals(group);
+        return backend().playerInGroup(player, group);
     }
 
     public boolean playerHas(String world, OfflinePlayer player, String permission) {
-        return false;
+        return backend().playerHas(player, permission);
     }
 
     public boolean playerAddGroup(String world, OfflinePlayer player, String group) {
-        return false;
+        return backend().playerAddGroup(player, group);
     }
 
     public boolean playerRemoveGroup(String world, OfflinePlayer player, String group) {
-        return false;
+        return backend().playerRemoveGroup(player, group);
     }
 
-    private static String groupFor(OfflinePlayer player) {
-        if (player == null) return "default";
-        Player online = player.getPlayer();
-        return (online != null ? online.isOp() : player.isOp()) ? "op" : "default";
+    private PermissionBackend backend() {
+        PermissionBackend current = forgeEssentials;
+        if (current != null && current.isAvailable()) return current;
+        if (!Loader.isModLoaded("ForgeEssentials")) return fallback;
+
+        synchronized (this) {
+            current = forgeEssentials;
+            if (current == null) {
+                try {
+                    current = (PermissionBackend) Class
+                        .forName("com.ntnh.herald.permissions.ForgeEssentialsPermissionBackend")
+                        .newInstance();
+                    forgeEssentials = current;
+                } catch (ReflectiveOperationException | LinkageError ignored) {
+                    return fallback;
+                }
+            }
+        }
+        return current.isAvailable() ? current : fallback;
     }
 }
