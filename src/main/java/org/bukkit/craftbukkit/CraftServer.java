@@ -392,8 +392,7 @@ public class CraftServer implements Server {
         List<Entity> entities = new ArrayList<>();
         if (sender == null || selector == null || console == null) return entities;
         ICommandSender commandSender = sender instanceof CraftPlayer ? ((CraftPlayer) sender).getHandle()
-            : sender instanceof CraftCommandSender ? ((CraftCommandSender) sender).getHandle()
-                : console;
+            : sender instanceof CraftCommandSender ? ((CraftCommandSender) sender).getHandle() : console;
         try {
             EntityPlayerMP[] players = PlayerSelector.matchPlayers(commandSender, selector);
             if (players != null) {

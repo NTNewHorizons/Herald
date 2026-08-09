@@ -1,12 +1,12 @@
 package net.milkbowl.vault.permission;
 
-import cpw.mods.fml.common.Loader;
-
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import com.ntnh.herald.permissions.PermissionBackend;
 import com.ntnh.herald.permissions.VanillaPermissionBackend;
+
+import cpw.mods.fml.common.Loader;
 
 /**
  * Forge-native stand-in for the Vault permission API. It delegates to ForgeEssentials when its permissions module is

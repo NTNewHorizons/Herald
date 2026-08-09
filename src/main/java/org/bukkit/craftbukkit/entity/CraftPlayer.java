@@ -128,13 +128,7 @@ public class CraftPlayer implements Player {
         if (sound == null || handle.playerNetServerHandler == null) return;
         Location target = location != null ? location : getLocation();
         handle.playerNetServerHandler.sendPacket(
-            new S29PacketSoundEffect(
-                sound.getLegacyKey(),
-                target.getX(),
-                target.getY(),
-                target.getZ(),
-                volume,
-                pitch));
+            new S29PacketSoundEffect(sound.getLegacyKey(), target.getX(), target.getY(), target.getZ(), volume, pitch));
     }
 
     @Override

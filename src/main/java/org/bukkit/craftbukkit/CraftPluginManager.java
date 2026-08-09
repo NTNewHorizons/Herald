@@ -10,8 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.bukkit.event.Event;
-import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventException;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
@@ -123,12 +123,7 @@ public class CraftPluginManager implements PluginManager {
     @Override
     public void registerEvent(Class<? extends Event> eventClass, Listener listener, EventPriority priority,
         EventExecutor executor, Plugin plugin, boolean ignoreCancelled) {
-        RegisteredListener registered = new RegisteredListener(
-            listener,
-            executor,
-            priority,
-            plugin,
-            ignoreCancelled);
+        RegisteredListener registered = new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled);
         listenersByPlugin.computeIfAbsent(plugin, ignored -> new CopyOnWriteArrayList<>())
             .add(registered);
         HandlerList.getHandlerList(eventClass)
