@@ -1,19 +1,27 @@
 package com.ntnh.herald;
 
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.ChatComponentText;
 
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.PluginCommand;
+import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.command.CraftCommandSender;
 import org.bukkit.craftbukkit.command.CraftConsoleCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 
 import github.scarsz.discordsrv.DiscordSRV;
 
 public class CommandDiscord extends CommandBase {
+
+    private static final List<String> ALIASES = Collections.singletonList("discordsrv");
 
     @Override
     public String getCommandName() {
@@ -23,6 +31,11 @@ public class CommandDiscord extends CommandBase {
     @Override
     public String getCommandUsage(ICommandSender sender) {
         return "/discord <help|link|unlink|linked|broadcast|debug|reload|resync|language|debugger>";
+    }
+
+    @Override
+    public List<String> getCommandAliases() {
+        return ALIASES;
     }
 
     @Override
@@ -43,22 +56,39 @@ public class CommandDiscord extends CommandBase {
             return;
         }
 
-        CommandSender bukkitSender;
-        if (sender instanceof EntityPlayerMP) {
-            bukkitSender = new CraftPlayer((EntityPlayerMP) sender);
-        } else {
-            bukkitSender = CraftConsoleCommandSender.getInstance();
-        }
+        plugin.onCommand(toBukkitSender(sender), createBukkitCommand(plugin), getCommandName(), args);
+    }
 
-        String command = args.length > 0 ? args[0] : "";
-        String[] commandArgs = args.length > 1 ? Arrays.copyOfRange(args, 1, args.length) : new String[0];
+    @Override
+    public List<String> addTabCompletionOptions(ICommandSender sender, String[] args) {
+        DiscordSRV plugin = DiscordSRV.getPlugin();
+        if (plugin == null) return Collections.emptyList();
 
-        plugin.getCommandManager()
-            .handle(bukkitSender, command, commandArgs);
+        String[] completionArgs = args.length == 0 ? new String[] { "" } : Arrays.copyOf(args, args.length);
+        List<String> completions = plugin
+            .onTabComplete(toBukkitSender(sender), createBukkitCommand(plugin), getCommandName(), completionArgs);
+        return completions != null ? completions : Collections.emptyList();
     }
 
     @Override
     public boolean isUsernameIndex(String[] args, int index) {
         return false;
+    }
+
+    private static CommandSender toBukkitSender(ICommandSender sender) {
+        if (sender instanceof EntityPlayerMP) {
+            if (org.bukkit.Bukkit.getServer() instanceof CraftServer) {
+                return ((CraftServer) org.bukkit.Bukkit.getServer()).getCraftPlayer((EntityPlayerMP) sender);
+            }
+            return new CraftPlayer((EntityPlayerMP) sender);
+        }
+        if (sender == MinecraftServer.getServer()) return CraftConsoleCommandSender.getInstance();
+        return new CraftCommandSender(sender);
+    }
+
+    private static PluginCommand createBukkitCommand(DiscordSRV plugin) {
+        PluginCommand command = new PluginCommand("discord", plugin);
+        command.setAliases(ALIASES);
+        return command;
     }
 }

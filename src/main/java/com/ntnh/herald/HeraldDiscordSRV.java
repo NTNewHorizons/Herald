@@ -9,6 +9,7 @@ import java.util.Collections;
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.rcon.RConConsoleSource;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.stats.Achievement;
 import net.minecraft.stats.StatisticsFile;
@@ -25,7 +26,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.command.CraftCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
@@ -36,6 +39,7 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.RemoteServerCommandEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -45,6 +49,7 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLServerStartedEvent;
 import cpw.mods.fml.common.event.FMLServerStartingEvent;
+import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -133,19 +138,26 @@ public class HeraldDiscordSRV {
     }
 
     public void postInit(FMLPostInitializationEvent event) {
-        // no-op for now
+        processAlert(event);
     }
 
     public void serverStarting(FMLServerStartingEvent event) {
         if (discordSRV != null) {
             event.registerServerCommand(new CommandDiscord());
         }
+        processAlert(event);
     }
 
     public void serverStarted(FMLServerStartedEvent event) {
         if (discordSRV == null) return;
         // Channel placeholders may query ServerConfigurationManager, which Forge does not create until this event.
         discordSRV.restartChannelUpdaters();
+        processAlert(event);
+    }
+
+    @SubscribeEvent
+    public void onNativeEvent(cpw.mods.fml.common.eventhandler.Event event) {
+        processAlert(event);
     }
 
     @SubscribeEvent
@@ -171,6 +183,7 @@ public class HeraldDiscordSRV {
         PlayerDeathEvent deathEvent = new PlayerDeathEvent(craftPlayer, deathMessage);
         Bukkit.getPluginManager()
             .callEvent(deathEvent);
+        if (deathEvent.isCancelled()) event.setCanceled(true);
     }
 
     private static String resolveDeathMessage(EntityLivingBase entity) {
@@ -200,8 +213,14 @@ public class HeraldDiscordSRV {
             PlayerCommandPreprocessEvent commandEvent = new PlayerCommandPreprocessEvent(craftPlayer, command);
             Bukkit.getPluginManager()
                 .callEvent(commandEvent);
-        } else if (event.sender == MinecraftServer.getServer()) {
-            ServerCommandEvent commandEvent = new ServerCommandEvent(Bukkit.getConsoleSender(), command);
+            if (commandEvent.isCancelled()) event.setCanceled(true);
+        } else {
+            String serverCommand = command.startsWith("/") ? command.substring(1) : command;
+            CommandSender sender = event.sender == MinecraftServer.getServer() ? Bukkit.getConsoleSender()
+                : new CraftCommandSender(event.sender);
+            ServerCommandEvent commandEvent = event.sender instanceof RConConsoleSource
+                ? new RemoteServerCommandEvent(sender, serverCommand)
+                : new ServerCommandEvent(sender, serverCommand);
             Bukkit.getPluginManager()
                 .callEvent(commandEvent);
         }
@@ -229,6 +248,7 @@ public class HeraldDiscordSRV {
         AsyncPlayerChatEvent chatEvent = new AsyncPlayerChatEvent(craftPlayer, event.message);
         Bukkit.getPluginManager()
             .callEvent(chatEvent);
+        if (chatEvent.isCancelled()) event.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -368,7 +388,8 @@ public class HeraldDiscordSRV {
         return result.toString();
     }
 
-    public void shutdown() {
+    public void shutdown(FMLServerStoppingEvent event) {
+        processAlert(event);
         if (discordSRV != null && discordSRV.isEnabled()) {
             log.info("Shutting down Herald DiscordSRV");
             discordSRV.onDisable();
@@ -377,6 +398,12 @@ public class HeraldDiscordSRV {
             craftServer.getScheduler()
                 .shutdown();
         }
+    }
+
+    private void processAlert(Object event) {
+        if (discordSRV == null || !discordSRV.isEnabled() || discordSRV.getAlertListener() == null) return;
+        discordSRV.getAlertListener()
+            .processEvent(event);
     }
 
     public DiscordSRV getDiscordSRV() {

@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.List;
@@ -9,8 +10,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.bukkit.event.Event;
+import org.bukkit.event.EventException;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
+import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
@@ -22,12 +25,30 @@ public class CraftPluginManager implements PluginManager {
 
     // DiscordSRV registers listeners from its asynchronous initialization thread while Forge dispatches events on
     // the server thread. The registry therefore needs safe publication across threads.
-    private final Map<Plugin, List<Listener>> listenersByPlugin = new ConcurrentHashMap<>();
+    private final Map<Plugin, List<RegisteredListener>> listenersByPlugin = new ConcurrentHashMap<>();
 
     @Override
     public void registerEvents(Listener listener, Plugin plugin) {
-        listenersByPlugin.computeIfAbsent(plugin, k -> new CopyOnWriteArrayList<>())
-            .add(listener);
+        for (Method method : listener.getClass()
+            .getMethods()) {
+            EventHandler handler = method.getAnnotation(EventHandler.class);
+            if (handler == null) continue;
+            Class<?>[] parameters = method.getParameterTypes();
+            if (parameters.length != 1 || !Event.class.isAssignableFrom(parameters[0])) continue;
+
+            @SuppressWarnings("unchecked")
+            Class<? extends Event> eventClass = (Class<? extends Event>) parameters[0];
+            registerEvent(eventClass, listener, handler.priority(), (registered, event) -> {
+                try {
+                    method.invoke(registered, event);
+                } catch (IllegalAccessException | InvocationTargetException exception) {
+                    Throwable cause = exception instanceof InvocationTargetException
+                        ? ((InvocationTargetException) exception).getCause()
+                        : exception;
+                    throw new RuntimeException("Could not dispatch " + event.getEventName(), cause);
+                }
+            }, plugin, handler.ignoreCancelled());
+        }
     }
 
     @Override
@@ -61,21 +82,14 @@ public class CraftPluginManager implements PluginManager {
 
     @Override
     public void callEvent(Event event) {
-        for (List<Listener> listeners : listenersByPlugin.values()) {
-            for (Listener listener : listeners) {
-                for (Method method : listener.getClass()
-                    .getMethods()) {
-                    EventHandler handler = method.getAnnotation(EventHandler.class);
-                    if (handler == null) continue;
-                    Class<?>[] params = method.getParameterTypes();
-                    if (params.length == 1 && params[0].isAssignableFrom(event.getClass())) {
-                        try {
-                            method.invoke(listener, event);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
+        for (RegisteredListener listener : event.getHandlers()
+            .getRegisteredListeners()) {
+            if (listener.getPlugin() != null && !listener.getPlugin()
+                .isEnabled()) continue;
+            try {
+                listener.callEvent(event);
+            } catch (EventException | RuntimeException exception) {
+                exception.printStackTrace();
             }
         }
     }
@@ -90,12 +104,15 @@ public class CraftPluginManager implements PluginManager {
 
     @Override
     public void clearPlugins() {
+        for (Plugin plugin : listenersByPlugin.keySet()) {
+            HandlerList.unregisterAll(plugin);
+        }
         listenersByPlugin.clear();
     }
 
     @Override
     public Set<RegisteredListener> getRegisteredListeners(Plugin plugin) {
-        return new HashSet<>();
+        return new HashSet<>(listenersByPlugin.getOrDefault(plugin, java.util.Collections.emptyList()));
     }
 
     @Override
@@ -106,7 +123,10 @@ public class CraftPluginManager implements PluginManager {
     @Override
     public void registerEvent(Class<? extends Event> eventClass, Listener listener, EventPriority priority,
         EventExecutor executor, Plugin plugin, boolean ignoreCancelled) {
-        listenersByPlugin.computeIfAbsent(plugin, k -> new CopyOnWriteArrayList<>())
-            .add(listener);
+        RegisteredListener registered = new RegisteredListener(listener, executor, priority, plugin, ignoreCancelled);
+        listenersByPlugin.computeIfAbsent(plugin, ignored -> new CopyOnWriteArrayList<>())
+            .add(registered);
+        HandlerList.getHandlerList(eventClass)
+            .register(registered);
     }
 }

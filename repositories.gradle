@@ -23,4 +23,8 @@ repositories {
         name = "Kotori Maven"
         url = "https://maven.kotori.dev/"
     }
+    maven {
+        name = "CurseMaven"
+        url = "https://cursemaven.com"
+    }
 }

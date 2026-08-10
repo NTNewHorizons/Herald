@@ -12,6 +12,6 @@ public abstract class Event {
     }
 
     public HandlerList getHandlers() {
-        return null;
+        return HandlerList.getHandlerList(getClass());
     }
 }

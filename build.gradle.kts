@@ -42,6 +42,17 @@ tasks.named("shadowJar").configure {
 }
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Mojang Legacy Libraries"
+                url = uri("https://libraries.minecraft.net/")
+            }
+        }
+        filter {
+            includeModule("lzma", "lzma")
+        }
+    }
     maven {
         name = "Scarsz Maven"
         url = uri("https://nexus.scarsz.me/content/groups/public/")

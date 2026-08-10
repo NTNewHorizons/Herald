@@ -78,6 +78,9 @@
 #      Timestamp: false # set to true to use the time the message was sent or use a epoch timestamp for a specific time (https://www.epochconverter.com/)
 #
 Alerts:
+  # Forge and FML events can also be used by their full class name, for example:
+  # cpw.mods.fml.common.gameevent.PlayerEvent$PlayerRespawnEvent or net.minecraftforge.event.world.BlockEvent$BreakEvent
+
   # Example config to send messages to the "fish" DiscordSRV channel when a player successfully catches a fish
   #- Trigger: org.bukkit.event.player.PlayerFishEvent
   #  Channel: fish

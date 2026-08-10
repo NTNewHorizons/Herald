@@ -32,6 +32,7 @@ import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.command.SimpleCommandMap;
+import org.bukkit.craftbukkit.command.CraftCommandSender;
 import org.bukkit.craftbukkit.command.CraftConsoleCommandSender;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.craftbukkit.scheduler.CraftScheduler;
@@ -378,6 +379,8 @@ public class CraftServer implements Server {
         ICommandSender icommandsender = console;
         if (sender instanceof org.bukkit.craftbukkit.entity.CraftPlayer) {
             icommandsender = ((org.bukkit.craftbukkit.entity.CraftPlayer) sender).getHandle();
+        } else if (sender instanceof CraftCommandSender) {
+            icommandsender = ((CraftCommandSender) sender).getHandle();
         }
         console.getCommandManager()
             .executeCommand(icommandsender, command);
@@ -388,7 +391,8 @@ public class CraftServer implements Server {
     public List<Entity> selectEntities(CommandSender sender, String selector) {
         List<Entity> entities = new ArrayList<>();
         if (sender == null || selector == null || console == null) return entities;
-        ICommandSender commandSender = sender instanceof CraftPlayer ? ((CraftPlayer) sender).getHandle() : console;
+        ICommandSender commandSender = sender instanceof CraftPlayer ? ((CraftPlayer) sender).getHandle()
+            : sender instanceof CraftCommandSender ? ((CraftCommandSender) sender).getHandle() : console;
         try {
             EntityPlayerMP[] players = PlayerSelector.matchPlayers(commandSender, selector);
             if (players != null) {

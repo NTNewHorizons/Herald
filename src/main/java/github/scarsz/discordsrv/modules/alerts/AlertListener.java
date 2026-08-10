@@ -41,6 +41,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerEvent;
+import org.bukkit.event.server.RemoteServerCommandEvent;
 import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.RegisteredListener;
 import org.jetbrains.annotations.NotNull;
@@ -68,7 +69,8 @@ public class AlertListener implements Listener, EventListener {
         "relocated.org.bukkit.event.player.PlayerChatEvent",
         // We explicitly listen to these events
         "relocated.org.bukkit.event.player.PlayerCommandPreprocessEvent",
-        "relocated.org.bukkit.event.server.ServerCommandEvent");
+        "relocated.org.bukkit.event.server.ServerCommandEvent",
+        "relocated.org.bukkit.event.server.RemoteServerCommandEvent");
     private static final List<String> SYNC_EVENT_NAMES = Arrays.asList(
         // Needs to be sync because block data will be stale by time async task runs
         "relocated.org.bukkit.event.block.BlockBreakEvent");
@@ -241,39 +243,15 @@ public class AlertListener implements Listener, EventListener {
                         continue;
                     }
 
-                    Method method = null;
-                    Class<?> handlerListClass = eventClass;
-                    while (method == null && handlerListClass != null) {
-                        try {
-                            method = handlerListClass.getDeclaredMethod("getHandlerList");
-                        } catch (NoSuchMethodException ignored) {}
-                        handlerListClass = handlerListClass.getSuperclass();
-                    }
-
-                    if (method == null) {
-                        DiscordSRV.error("Could not find getHandlerList method for " + eventClass.getName());
-                        continue;
-                    }
-
-                    Object handlerList = method.invoke(null);
-                    if (!(handlerList instanceof HandlerList)) {
-                        DiscordSRV.error(
-                            "Could not get HandlerList for " + eventClass.getName()
-                                + ": getHandlerList does not actually return a "
-                                + HandlerList.class.getName());
-                        continue;
-                    }
-
-                    if (!handlerLists.add((HandlerList) handlerList)) {
+                    HandlerList handlerList = HandlerList.getHandlerList(eventClass.asSubclass(Event.class));
+                    if (!handlerLists.add(handlerList)) {
                         // Ignore duplicate HandlerLists
                         continue;
                     }
 
-                    addListener((HandlerList) handlerList);
+                    addListener(handlerList);
                 } catch (ClassNotFoundException ignored) {
                     DiscordSRV.warning("Could not find event for alert trigger: " + trigger);
-                } catch (InvocationTargetException | IllegalAccessException e) {
-                    DiscordSRV.error("Could not get HandlerList for event " + trigger, e);
                 }
             }
         }
@@ -322,6 +300,15 @@ public class AlertListener implements Listener, EventListener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerCommand(ServerCommandEvent event) {
         runAlertsForEvent(event);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onRemoteServerCommand(RemoteServerCommandEvent event) {
+        runAlertsForEvent(event);
+    }
+
+    public void processEvent(Object event) {
+        if (event != null) runAlertsForEvent(event);
     }
 
     private void runAlertsForEvent(Object event) {
