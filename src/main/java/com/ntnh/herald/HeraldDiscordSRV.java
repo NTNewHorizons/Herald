@@ -4,7 +4,6 @@ import java.io.File;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Collections;
 
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
@@ -90,7 +89,6 @@ public class HeraldDiscordSRV {
 
         try {
             discordSRV = new DiscordSRV();
-            applyForgeConfigOverrides();
             discordSRV.setEnabled(true);
         } catch (Exception e) {
             log.error("Failed to create DiscordSRV instance", e);
@@ -116,24 +114,6 @@ public class HeraldDiscordSRV {
             } catch (Exception e) {
                 log.error("Failed to enable DiscordSRV", e);
             }
-        }
-    }
-
-    private void applyForgeConfigOverrides() {
-        if (StringUtils.isNotBlank(Config.discordToken)) {
-            DiscordSRV.config()
-                .setRuntimeValue("BotToken", Config.discordToken.trim());
-            log.info("Using Discord bot token from config/herald.cfg");
-        }
-        if (StringUtils.isNotBlank(Config.discordChatChannelId)) {
-            DiscordSRV.config()
-                .setRuntimeValue("Channels", Collections.singletonMap("global", Config.discordChatChannelId.trim()));
-            log.info("Using Discord chat channel from config/herald.cfg");
-        }
-        if (StringUtils.isNotBlank(Config.discordConsoleChannelId)) {
-            DiscordSRV.config()
-                .setRuntimeValue("DiscordConsoleChannelId", Config.discordConsoleChannelId.trim());
-            log.info("Using Discord console channel from config/herald.cfg");
         }
     }
 
@@ -317,7 +297,6 @@ public class HeraldDiscordSRV {
     @SubscribeEvent
     public void onPlayerAchievement(AchievementEvent event) {
         if (discordSRV == null || !discordSRV.isEnabled()) return;
-        if (!Config.broadcastAchievements) return;
         if (event == null || event.achievement == null) return;
         if (!(event.entityPlayer instanceof EntityPlayerMP)) return;
 
