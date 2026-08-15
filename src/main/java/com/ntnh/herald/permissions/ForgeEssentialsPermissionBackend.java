@@ -4,6 +4,8 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
 
+import net.minecraftforge.permission.PermissionLevel;
+
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 
@@ -22,8 +24,38 @@ import github.scarsz.discordsrv.util.SchedulerUtil;
 public final class ForgeEssentialsPermissionBackend implements PermissionBackend {
 
     public ForgeEssentialsPermissionBackend() {
+        registerPermissions();
         APIRegistry.getFEEventBus()
             .register(this);
+    }
+
+    private static void registerPermissions() {
+        IPermissionsHelper permissions = permissions();
+
+        String[] playerPermissions = { "discordsrv.player", "discordsrv.chat", "discordsrv.help", "discordsrv.link",
+            "discordsrv.linked", "discordsrv.discord", "discordsrv.nicknamesync" };
+        for (String permission : playerPermissions) {
+            permissions.registerPermission(permission, PermissionLevel.TRUE);
+        }
+
+        String[] adminPermissions = { "discordsrv.admin", "discordsrv.updatenotification", "discordsrv.bcast",
+            "discordsrv.reload", "discordsrv.debug", "discordsrv.link.others", "discordsrv.linked.others",
+            "discordsrv.unlink", "discordsrv.unlink.others", "discordsrv.resync", "discordsrv.groupsyncwithcommands",
+            "discordsrv.language" };
+        for (String permission : adminPermissions) {
+            permissions.registerPermission(permission, PermissionLevel.OP);
+        }
+
+        permissions.registerPermission("discordsrv.silentjoin", PermissionLevel.FALSE);
+        permissions.registerPermission("discordsrv.silentquit", PermissionLevel.FALSE);
+
+        DiscordSRV plugin = DiscordSRV.getPlugin();
+        if (plugin == null) return;
+        for (String group : plugin.getGroupSynchronizables()
+            .keySet()) {
+            permissions.registerPermission("discordsrv.sync." + group, PermissionLevel.FALSE);
+            permissions.registerPermission("discordsrv.sync.deny." + group, PermissionLevel.FALSE);
+        }
     }
 
     @Override
