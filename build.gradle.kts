@@ -37,6 +37,7 @@ tasks.named("shadowJar").configure {
     relocate.invoke(this, "com.hrakaroo", p + "hrakaroo")
     relocate.invoke(this, "net.sf.trove4j", p + "trove4j")
     relocate.invoke(this, "org.springframework", p + "springframework")
+    relocate.invoke(this, "org.slf4j", p + "slf4j")
     relocate.invoke(this, "okhttp3", p + "okhttp3")
     relocate.invoke(this, "okio", p + "okio")
 }
