@@ -1,14 +1,13 @@
 package org.bukkit.craftbukkit;
 
 import java.io.File;
-import java.util.List;
 import java.util.UUID;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.WorldServer;
 
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 public class CraftOfflinePlayer implements OfflinePlayer {
@@ -56,10 +55,15 @@ public class CraftOfflinePlayer implements OfflinePlayer {
     @Override
     public boolean hasPlayedBefore() {
         try {
-            List<World> worlds = Bukkit.getWorlds();
-            if (worlds == null || worlds.isEmpty()) return false;
-            File worldFolder = worlds.get(0)
-                .getWorldFolder();
+            MinecraftServer server = MinecraftServer.getServer();
+            if (server == null || server.worldServers == null || server.worldServers.length == 0) return false;
+
+            // Forge dispatches the player-login event before this shim is guaranteed to receive WorldEvent.Load.
+            // Using Bukkit.getWorlds() here therefore made every join look like a first join. Player data is
+            // always stored with the primary world, so consult Forge's live world array directly.
+            WorldServer primaryWorld = server.worldServers[0];
+            if (primaryWorld == null) return false;
+            File worldFolder = primaryWorld.getChunkSaveLocation();
             if (worldFolder == null) return false;
             File playerData = new File(worldFolder, "playerdata");
             return new File(playerData, uuid + ".dat").exists();
