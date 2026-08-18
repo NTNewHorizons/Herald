@@ -10,6 +10,7 @@ import cpw.mods.fml.common.event.FMLServerStoppingEvent;
 public class CommonProxy {
 
     public void preInit(FMLPreInitializationEvent event) {
+        HeraldConfig.synchronizeConfiguration(event.getSuggestedConfigurationFile());
         Herald.LOG.info("Herald version " + Tags.VERSION + " loading");
     }
 
