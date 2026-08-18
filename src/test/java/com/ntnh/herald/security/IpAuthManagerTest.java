@@ -143,6 +143,82 @@ class IpAuthManagerTest {
     }
 
     @Test
+    void successfulInitialDiscordLinkEnrollsOnlyTheIpThatStartedLinking() throws Exception {
+        MutableClock clock = new MutableClock(10_000L);
+        Map<UUID, String> links = new HashMap<>();
+        UUID uuid = UUID.randomUUID();
+        IpAuthStore store = store("link-enrollment.tsv");
+        InetAddress linkingAddress = InetAddress.getByName("198.51.100.40");
+        InetAddress otherAddress = InetAddress.getByName("198.51.100.41");
+
+        try (IpAuthManager manager = manager(settings(true, 1, true, false), store, links, new ArrayList<>(), clock)) {
+            assertTrue(manager.rememberInitialLinkAttempt("NewPlayer", uuid, linkingAddress));
+            links.put(uuid, "discord-b");
+            assertFalse(manager.completeInitialLinkEnrollment(uuid, "discord-a"));
+            assertFalse(store.isTrusted(uuid, IpAddress.from(linkingAddress)));
+
+            links.put(uuid, "discord-a");
+
+            assertTrue(manager.completeInitialLinkEnrollment(uuid, "discord-a"));
+            assertTrue(store.isTrusted(uuid, IpAddress.from(linkingAddress)));
+            assertFalse(store.isTrusted(uuid, IpAddress.from(otherAddress)));
+            assertTrue(
+                manager.checkLogin("NewPlayer", uuid, linkingAddress)
+                    .isAllowed());
+            assertFalse(
+                manager.checkLogin("NewPlayer", uuid, otherAddress)
+                    .isAllowed());
+        }
+    }
+
+    @Test
+    void repeatedLinkAttemptsCannotReplaceTheIpThatStartedLinking() throws Exception {
+        MutableClock clock = new MutableClock(20_000L);
+        Map<UUID, String> links = new HashMap<>();
+        UUID uuid = UUID.randomUUID();
+        IpAuthStore store = store("first-linking-ip.tsv");
+        InetAddress firstAddress = InetAddress.getByName("2001:db8::20");
+        InetAddress laterAddress = InetAddress.getByName("2001:db8::21");
+
+        try (IpAuthManager manager = manager(settings(true, 2, true, false), store, links, new ArrayList<>(), clock)) {
+            assertTrue(manager.rememberInitialLinkAttempt("NewPlayer", uuid, firstAddress));
+            assertFalse(manager.rememberInitialLinkAttempt("NewPlayer", uuid, laterAddress));
+            links.put(uuid, "discord-a");
+
+            assertTrue(manager.completeInitialLinkEnrollment(uuid, "discord-a"));
+            assertTrue(store.isTrusted(uuid, IpAddress.from(firstAddress)));
+            assertFalse(store.isTrusted(uuid, IpAddress.from(laterAddress)));
+        }
+    }
+
+    @Test
+    void linkEnrollmentExpiresAndNeverAddsAnIpToAnExistingRecord() throws Exception {
+        MutableClock clock = new MutableClock(30_000L);
+        Map<UUID, String> links = new HashMap<>();
+        UUID expiredUuid = UUID.randomUUID();
+        UUID existingUuid = UUID.randomUUID();
+        IpAuthStore store = store("guarded-link-enrollment.tsv");
+        InetAddress expiredAddress = InetAddress.getByName("203.0.113.50");
+        InetAddress trustedAddress = InetAddress.getByName("203.0.113.51");
+        InetAddress attemptedAddress = InetAddress.getByName("203.0.113.52");
+
+        try (IpAuthManager manager = manager(settings(true, 2, true, false), store, links, new ArrayList<>(), clock)) {
+            assertTrue(manager.rememberInitialLinkAttempt("Expired", expiredUuid, expiredAddress));
+            links.put(expiredUuid, "discord-a");
+            clock.advance(300_000L);
+            assertFalse(manager.completeInitialLinkEnrollment(expiredUuid, "discord-a"));
+            assertFalse(store.isTrusted(expiredUuid, IpAddress.from(expiredAddress)));
+
+            store.authorize(existingUuid, IpAddress.from(trustedAddress), clock.getAsLong(), 2);
+            assertFalse(manager.rememberInitialLinkAttempt("Existing", existingUuid, attemptedAddress));
+            links.put(existingUuid, "discord-b");
+            assertFalse(manager.completeInitialLinkEnrollment(existingUuid, "discord-b"));
+            assertTrue(store.isTrusted(existingUuid, IpAddress.from(trustedAddress)));
+            assertFalse(store.isTrusted(existingUuid, IpAddress.from(attemptedAddress)));
+        }
+    }
+
+    @Test
     void trustedAddressesAreUuidScoped() throws Exception {
         IpAuthStore store = store("nat.tsv");
         IpAddress sharedAddress = IpAddress.parse("192.0.2.44");

@@ -29,6 +29,7 @@ public final class IpAuthManager implements Closeable {
     private final SecureRandom secureRandom;
     private final Object challengeLock = new Object();
     private final Map<String, IpAuthChallenge> challenges = new HashMap<>();
+    private final Map<UUID, InitialLinkEnrollment> initialLinkEnrollments = new HashMap<>();
     private final int codeBound;
 
     public IpAuthManager(IpAuthSettings settings, IpAuthStore store, IpAuthAuditLogger auditLogger,
@@ -161,6 +162,80 @@ public final class IpAuthManager implements Closeable {
             selection.sendDm);
     }
 
+    /** Remembers the first exact login IP that caused DiscordSRV to issue an account-linking code. */
+    public boolean rememberInitialLinkAttempt(String username, UUID uuid, InetAddress inetAddress) {
+        if (!settings.isEnabled() || !settings.isRequireInitialVerification()
+            || inetAddress == null
+            || store.hasTrustedIps(uuid)) return false;
+
+        long now = clock.getAsLong();
+        IpAddress address = IpAddress.from(inetAddress);
+        synchronized (challengeLock) {
+            purgeExpiredLocked(now);
+            if (store.hasTrustedIps(uuid)) {
+                initialLinkEnrollments.remove(uuid);
+                return false;
+            }
+            InitialLinkEnrollment existing = initialLinkEnrollments.get(uuid);
+            if (existing != null) return existing.getAddress()
+                .equals(address);
+            initialLinkEnrollments
+                .put(uuid, new InitialLinkEnrollment(address, username, safeAdd(now, settings.getCodeExpiryMillis())));
+            return true;
+        }
+    }
+
+    /**
+     * Enrolls a captured initial IP only after DiscordSRV reports a successful link and its current link manager
+     * confirms that the UUID remains linked. Existing trusted-IP records are never expanded by this path.
+     */
+    public boolean completeInitialLinkEnrollment(UUID uuid, String linkedDiscordId) {
+        if (!settings.isEnabled() || !settings.isRequireInitialVerification()) return false;
+
+        long now = clock.getAsLong();
+        InitialLinkEnrollment enrollment;
+        synchronized (challengeLock) {
+            purgeExpiredLocked(now);
+            enrollment = initialLinkEnrollments.get(uuid);
+        }
+        if (enrollment == null || linkedDiscordId == null || !linkedDiscordId.equals(resolveCurrentDiscordId(uuid)))
+            return false;
+
+        String currentDiscordId;
+        IpAuthStore.Authorization authorization;
+        synchronized (challengeLock) {
+            purgeExpiredLocked(clock.getAsLong());
+            if (initialLinkEnrollments.get(uuid) != enrollment) return false;
+
+            // Re-check while consuming so an unlink cannot turn a pending enrollment into a trusted IP.
+            currentDiscordId = resolveCurrentDiscordId(uuid);
+            if (!linkedDiscordId.equals(currentDiscordId)) return false;
+            if (store.hasTrustedIps(uuid)) {
+                initialLinkEnrollments.remove(uuid);
+                return false;
+            }
+            try {
+                authorization = store.authorize(uuid, enrollment.getAddress(), now, settings.getMaxTrustedIps());
+            } catch (IOException e) {
+                LOG.error("Could not persist the Discord-linking login IP for " + uuid, e);
+                return false;
+            }
+            initialLinkEnrollments.remove(uuid);
+            challenges.remove(challengeKey(uuid, enrollment.getAddress()));
+        }
+
+        IpAddress evicted = authorization.getEvictedAddress();
+        auditLogger.successfulAuthorization(
+            now,
+            enrollment.getUsername(),
+            uuid,
+            enrollment.getAddress()
+                .getText(),
+            currentDiscordId,
+            evicted != null ? evicted.getText() : null);
+        return true;
+    }
+
     public boolean recognizesVerificationMessage(String content) {
         return isVerificationCommand(content == null ? "" : content.trim());
     }
@@ -244,6 +319,7 @@ public final class IpAuthManager implements Closeable {
                     .getUuid()
                     .equals(uuid)) iterator.remove();
             }
+            initialLinkEnrollments.remove(uuid);
         }
     }
 
@@ -297,6 +373,11 @@ public final class IpAuthManager implements Closeable {
         while (iterator.hasNext()) if (iterator.next()
             .getValue()
             .isExpired(now)) iterator.remove();
+        Iterator<Map.Entry<UUID, InitialLinkEnrollment>> enrollmentIterator = initialLinkEnrollments.entrySet()
+            .iterator();
+        while (enrollmentIterator.hasNext()) if (enrollmentIterator.next()
+            .getValue()
+            .isExpired(now)) enrollmentIterator.remove();
     }
 
     private static String challengeKey(UUID uuid, IpAddress address) {
@@ -332,6 +413,7 @@ public final class IpAuthManager implements Closeable {
     public void close() throws IOException {
         synchronized (challengeLock) {
             challenges.clear();
+            initialLinkEnrollments.clear();
         }
         auditLogger.close();
     }
@@ -344,6 +426,31 @@ public final class IpAuthManager implements Closeable {
     public interface DirectMessenger {
 
         void send(String discordId, String message);
+    }
+
+    private static final class InitialLinkEnrollment {
+
+        private final IpAddress address;
+        private final String username;
+        private final long expiresAt;
+
+        private InitialLinkEnrollment(IpAddress address, String username, long expiresAt) {
+            this.address = address;
+            this.username = username;
+            this.expiresAt = expiresAt;
+        }
+
+        IpAddress getAddress() {
+            return address;
+        }
+
+        String getUsername() {
+            return username;
+        }
+
+        boolean isExpired(long now) {
+            return now >= expiresAt;
+        }
     }
 
     private static final class ChallengeSelection {

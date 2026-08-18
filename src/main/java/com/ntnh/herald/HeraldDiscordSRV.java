@@ -58,6 +58,8 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.api.Subscribe;
+import github.scarsz.discordsrv.api.events.AccountLinkedEvent;
 import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
 import github.scarsz.discordsrv.util.DiscordUtil;
 
@@ -69,6 +71,7 @@ public class HeraldDiscordSRV {
     private DiscordSRV discordSRV;
     private CraftServer craftServer;
     private IpAuthManager ipAuthManager;
+    private boolean discordApiSubscribed;
 
     public HeraldDiscordSRV() {
         instance = this;
@@ -119,6 +122,8 @@ public class HeraldDiscordSRV {
                     .register(this);
                 discordSRV.onEnable();
                 initializeIpAuthentication(dataFolder);
+                DiscordSRV.api.subscribe(this);
+                discordApiSubscribed = true;
                 log.info("Herald DiscordSRV startup scheduled; waiting for Discord connection");
             } catch (Exception e) {
                 log.error("Failed to enable DiscordSRV", e);
@@ -316,6 +321,7 @@ public class HeraldDiscordSRV {
             .callEvent(preLoginEvent);
         if (!preLoginEvent.getLoginResult()
             .allows()) {
+            rememberInitialLinkEnrollment(craftPlayer, address);
             kickPlayer(player, preLoginEvent.getKickMessage());
             return;
         }
@@ -324,6 +330,7 @@ public class HeraldDiscordSRV {
         Bukkit.getPluginManager()
             .callEvent(loginEvent);
         if (loginEvent.getResult() != PlayerLoginEvent.Result.ALLOWED) {
+            rememberInitialLinkEnrollment(craftPlayer, address);
             kickPlayer(player, loginEvent.getKickMessage());
             return;
         }
@@ -347,6 +354,29 @@ public class HeraldDiscordSRV {
         PlayerJoinEvent joinEvent = new PlayerJoinEvent(craftPlayer, craftPlayer.getName() + " joined the game");
         Bukkit.getPluginManager()
             .callEvent(joinEvent);
+    }
+
+    private void rememberInitialLinkEnrollment(CraftPlayer player, InetAddress address) {
+        if (ipAuthManager == null || player == null || address == null || discordSRV == null) return;
+        AccountLinkManager manager = discordSRV.getAccountLinkManager();
+        if (manager == null || !manager.getLinkingCodes()
+            .containsValue(player.getUniqueId())) return;
+        ipAuthManager.rememberInitialLinkAttempt(player.getName(), player.getUniqueId(), address);
+    }
+
+    /** Completes only the exact, short-lived IP enrollment captured when DiscordSRV issued the linking code. */
+    @Subscribe
+    public void onDiscordAccountLinked(AccountLinkedEvent event) {
+        if (ipAuthManager == null || event == null || event.getPlayer() == null || event.getUser() == null) return;
+        if (ipAuthManager.completeInitialLinkEnrollment(
+            event.getPlayer()
+                .getUniqueId(),
+            event.getUser()
+                .getId())) {
+            log.info(
+                "Automatically enrolled the Discord-linking login IP for Minecraft UUID " + event.getPlayer()
+                    .getUniqueId());
+        }
     }
 
     @SubscribeEvent
@@ -453,6 +483,10 @@ public class HeraldDiscordSRV {
 
     public void shutdown(FMLServerStoppingEvent event) {
         processAlert(event);
+        if (discordApiSubscribed) {
+            DiscordSRV.api.unsubscribe(this);
+            discordApiSubscribed = false;
+        }
         if (ipAuthManager != null) {
             try {
                 ipAuthManager.close();

@@ -57,7 +57,8 @@ public final class HeraldConfig {
             "requireInitialVerification",
             IP_AUTHENTICATION,
             requireInitialVerification,
-            "Require Discord verification for a UUID's first trusted IP instead of enrolling it automatically.");
+            "Require Discord verification for a UUID's first trusted IP. A successful Discord account link "
+                + "automatically enrolls the exact IP that initiated linking.");
         dmOnNewIp = configuration.getBoolean(
             "dmOnNewIp",
             IP_AUTHENTICATION,
