@@ -8,6 +8,7 @@ import java.net.SocketAddress;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
+import net.dv8tion.jda.api.JDA;
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -213,16 +214,33 @@ public class HeraldDiscordSRV {
 
     private AuthenticationReadiness.State authenticationStateForLogin() {
         AuthenticationReadiness.State state = authenticationReadiness.getState();
+        if (state == AuthenticationReadiness.State.FAILED) return state;
+
         if (state == AuthenticationReadiness.State.LOADING && discordSRV != null && !discordSRV.isEnabled()) {
             authenticationReadiness.markFailed("DiscordSRV was disabled during initialization");
             return AuthenticationReadiness.State.FAILED;
         }
+        if (state == AuthenticationReadiness.State.LOADING) return state;
 
-        if (state == AuthenticationReadiness.State.READY && !hasUsableAuthenticationStack()) {
-            authenticationReadiness.markFailed(describeUnavailableAuthenticationComponent());
+        String missingComponent = describeMissingAuthenticationComponent();
+        if (missingComponent != null) {
+            authenticationReadiness.markFailed(missingComponent);
             return AuthenticationReadiness.State.FAILED;
         }
-        return state;
+
+        JDA jda = discordSRV.getJda();
+        if (jda == null) {
+            authenticationReadiness.markFailed("DiscordSRV JDA is unavailable");
+            return AuthenticationReadiness.State.FAILED;
+        }
+
+        String jdaStatus = jda.getStatus()
+            .name();
+        boolean connected = "CONNECTED".equals(jdaStatus);
+        boolean permanentFailure = isPermanentJdaFailure(jdaStatus);
+        String reason = permanentFailure ? "Discord JDA entered terminal state " + jdaStatus
+            : "Discord connection state is " + jdaStatus;
+        return authenticationReadiness.refreshAvailability(true, connected, permanentFailure, reason);
     }
 
     public LoginDecision checkLoginBeforeAdmission(String username, UUID uuid, InetAddress address,
@@ -230,6 +248,9 @@ public class HeraldDiscordSRV {
         AuthenticationReadiness.State state = authenticationStateForLogin();
         if (state == AuthenticationReadiness.State.LOADING) {
             return LoginDecision.reject("Herald is still loading. Please try again shortly.");
+        }
+        if (state == AuthenticationReadiness.State.UNAVAILABLE) {
+            return LoginDecision.reject("Herald authentication is temporarily unavailable. Please try again shortly.");
         }
         if (state == AuthenticationReadiness.State.FAILED) {
             return LoginDecision.reject("Herald failed to load. Please contact a server administrator.");
@@ -279,22 +300,29 @@ public class HeraldDiscordSRV {
     }
 
     private void markAuthenticationReadyOrFailed() {
-        if (hasUsableAuthenticationStack()) {
+        String missingComponent = describeMissingAuthenticationComponent();
+        if (missingComponent != null) {
+            authenticationReadiness.markFailed(missingComponent);
+            return;
+        }
+
+        JDA jda = discordSRV.getJda();
+        if (jda == null) {
+            authenticationReadiness.markFailed("DiscordSRV initialization completed without JDA");
+            return;
+        }
+        String jdaStatus = jda.getStatus()
+            .name();
+        if ("CONNECTED".equals(jdaStatus)) {
             authenticationReadiness.markReady();
+        } else if (isPermanentJdaFailure(jdaStatus)) {
+            authenticationReadiness.markFailed("DiscordSRV initialization ended with JDA state " + jdaStatus);
         } else {
-            authenticationReadiness.markFailed(describeUnavailableAuthenticationComponent());
+            authenticationReadiness.markUnavailable("Discord connection state is " + jdaStatus);
         }
     }
 
-    private boolean hasUsableAuthenticationStack() {
-        DiscordSRV current = discordSRV;
-        return current != null && current.isEnabled()
-            && DiscordSRV.isReady
-            && current.getAccountLinkManager() != null
-            && (!HeraldConfig.ipAuthenticationEnabled || ipAuthManager != null);
-    }
-
-    private String describeUnavailableAuthenticationComponent() {
+    private String describeMissingAuthenticationComponent() {
         DiscordSRV current = discordSRV;
         if (current == null) return "DiscordSRV is unavailable";
         if (!current.isEnabled()) return "DiscordSRV is disabled";
@@ -303,7 +331,11 @@ public class HeraldDiscordSRV {
         if (HeraldConfig.ipAuthenticationEnabled && ipAuthManager == null) {
             return "Herald IP authentication is unavailable";
         }
-        return "a required authentication component is unavailable";
+        return null;
+    }
+
+    private static boolean isPermanentJdaFailure(String status) {
+        return "SHUTTING_DOWN".equals(status) || "SHUTDOWN".equals(status) || "FAILED_TO_LOGIN".equals(status);
     }
 
     public void serverStarted(FMLServerStartedEvent event) {
