@@ -61,10 +61,10 @@ public final class IpAuthManager implements Closeable {
 
     public LoginResult checkLogin(String username, UUID uuid, InetAddress inetAddress) {
         if (!settings.isEnabled()) return LoginResult.allowed();
-        long now = clock.getAsLong();
-        String linkedDiscordId = resolveCurrentDiscordId(uuid);
 
+        long now = clock.getAsLong();
         if (inetAddress == null) {
+            String linkedDiscordId = resolveCurrentDiscordId(uuid);
             auditLogger.failedIpCheck(
                 now,
                 username,
@@ -104,6 +104,8 @@ public final class IpAuthManager implements Closeable {
                     false);
             }
         }
+
+        String linkedDiscordId = resolveCurrentDiscordId(uuid);
 
         ChallengeSelection selection;
         try {
@@ -309,8 +311,9 @@ public final class IpAuthManager implements Closeable {
     }
 
     public void reset(UUID uuid) throws IOException {
-        store.reset(uuid);
         synchronized (challengeLock) {
+            // Authorization paths acquire challengeLock before the store; keep the same order to avoid deadlocks.
+            store.reset(uuid);
             Iterator<Map.Entry<String, IpAuthChallenge>> iterator = challenges.entrySet()
                 .iterator();
             while (iterator.hasNext()) {

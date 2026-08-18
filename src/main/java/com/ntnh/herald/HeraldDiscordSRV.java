@@ -321,7 +321,6 @@ public class HeraldDiscordSRV {
             .callEvent(preLoginEvent);
         if (!preLoginEvent.getLoginResult()
             .allows()) {
-            rememberInitialLinkEnrollment(craftPlayer, address);
             kickPlayer(player, preLoginEvent.getKickMessage());
             return;
         }
@@ -330,7 +329,6 @@ public class HeraldDiscordSRV {
         Bukkit.getPluginManager()
             .callEvent(loginEvent);
         if (loginEvent.getResult() != PlayerLoginEvent.Result.ALLOWED) {
-            rememberInitialLinkEnrollment(craftPlayer, address);
             kickPlayer(player, loginEvent.getKickMessage());
             return;
         }
@@ -356,12 +354,13 @@ public class HeraldDiscordSRV {
             .callEvent(joinEvent);
     }
 
-    private void rememberInitialLinkEnrollment(CraftPlayer player, InetAddress address) {
-        if (ipAuthManager == null || player == null || address == null || discordSRV == null) return;
-        AccountLinkManager manager = discordSRV.getAccountLinkManager();
-        if (manager == null || !manager.getLinkingCodes()
-            .containsValue(player.getUniqueId())) return;
-        ipAuthManager.rememberInitialLinkAttempt(player.getName(), player.getUniqueId(), address);
+    public void rememberInitialLinkAttempt(String username, java.util.UUID uuid, String rawAddress) {
+        if (ipAuthManager == null || rawAddress == null) return;
+        try {
+            ipAuthManager.rememberInitialLinkAttempt(username, uuid, InetAddress.getByName(rawAddress));
+        } catch (java.net.UnknownHostException e) {
+            log.warn("Could not capture the IP that initiated Discord registration for " + uuid, e);
+        }
     }
 
     /** Completes only the exact, short-lived IP enrollment captured when DiscordSRV issued the linking code. */
