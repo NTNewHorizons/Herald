@@ -48,6 +48,7 @@ import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import com.mojang.authlib.GameProfile;
+import com.ntnh.herald.auth.AuthenticationReadiness;
 import com.ntnh.herald.auth.LoginDecision;
 import com.ntnh.herald.auth.PreAdmissionLoginHandler;
 import com.ntnh.herald.security.IpAuthAuditLogger;
@@ -73,6 +74,7 @@ public class HeraldDiscordSRV {
     private static HeraldDiscordSRV instance;
 
     private DiscordSRV discordSRV;
+    private final AuthenticationReadiness authenticationReadiness = new AuthenticationReadiness(log);
     private CraftServer craftServer;
     private final PreAdmissionLoginHandler preAdmissionLoginHandler = new PreAdmissionLoginHandler();
     private IpAuthManager ipAuthManager;
@@ -106,6 +108,7 @@ public class HeraldDiscordSRV {
             discordSRV = new DiscordSRV();
             discordSRV.setEnabled(true);
         } catch (Exception e) {
+            authenticationReadiness.markFailed("DiscordSRV could not be constructed");
             log.error("Failed to create DiscordSRV instance", e);
             return;
         }
@@ -124,11 +127,12 @@ public class HeraldDiscordSRV {
                 FMLCommonHandler.instance()
                     .bus()
                     .register(this);
-                discordSRV.onEnable();
                 initializeIpAuthentication(dataFolder);
+                discordSRV.onEnable();
                 log.info("Herald DiscordSRV startup scheduled; waiting for Discord connection");
             } catch (Exception e) {
                 log.error("Failed to enable DiscordSRV", e);
+                authenticationReadiness.markFailed("DiscordSRV or Herald IP authentication could not be enabled");
             }
         }
     }
@@ -207,11 +211,30 @@ public class HeraldDiscordSRV {
         return preAdmissionLoginHandler.begin(profile, remoteAddress);
     }
 
+    private AuthenticationReadiness.State authenticationStateForLogin() {
+        AuthenticationReadiness.State state = authenticationReadiness.getState();
+        if (state == AuthenticationReadiness.State.LOADING && discordSRV != null && !discordSRV.isEnabled()) {
+            authenticationReadiness.markFailed("DiscordSRV was disabled during initialization");
+            return AuthenticationReadiness.State.FAILED;
+        }
+
+        if (state == AuthenticationReadiness.State.READY && !hasUsableAuthenticationStack()) {
+            authenticationReadiness.markFailed(describeUnavailableAuthenticationComponent());
+            return AuthenticationReadiness.State.FAILED;
+        }
+        return state;
+    }
+
     public LoginDecision checkLoginBeforeAdmission(String username, UUID uuid, InetAddress address,
         InetSocketAddress socketAddress) {
-        // The explicit loading/failure gate is added in the follow-up readiness PR. Preserve the bridge's prior
-        // behavior here when DiscordSRV is disabled so this change remains limited to admission timing.
-        if (discordSRV == null || !discordSRV.isEnabled()) return LoginDecision.allow();
+        AuthenticationReadiness.State state = authenticationStateForLogin();
+        if (state == AuthenticationReadiness.State.LOADING) {
+            return LoginDecision.reject("Herald is still loading. Please try again shortly.");
+        }
+        if (state == AuthenticationReadiness.State.FAILED) {
+            return LoginDecision.reject("Herald failed to load. Please contact a server administrator.");
+        }
+
         if (username == null || uuid == null || address == null || socketAddress == null) {
             return LoginDecision.reject("Herald could not determine the source of this login. Please try again.");
         }
@@ -244,6 +267,43 @@ public class HeraldDiscordSRV {
 
         loginPlayer.markAdmissionAccepted();
         return LoginDecision.allow();
+    }
+
+    /** Called by DiscordSRV's initialization thread even when initialization returns early or throws. */
+    public void onDiscordInitializationFinished(boolean completedNormally) {
+        if (!completedNormally) {
+            authenticationReadiness.markFailed("DiscordSRV initialization terminated with an exception");
+            return;
+        }
+        markAuthenticationReadyOrFailed();
+    }
+
+    private void markAuthenticationReadyOrFailed() {
+        if (hasUsableAuthenticationStack()) {
+            authenticationReadiness.markReady();
+        } else {
+            authenticationReadiness.markFailed(describeUnavailableAuthenticationComponent());
+        }
+    }
+
+    private boolean hasUsableAuthenticationStack() {
+        DiscordSRV current = discordSRV;
+        return current != null && current.isEnabled()
+            && DiscordSRV.isReady
+            && current.getAccountLinkManager() != null
+            && (!HeraldConfig.ipAuthenticationEnabled || ipAuthManager != null);
+    }
+
+    private String describeUnavailableAuthenticationComponent() {
+        DiscordSRV current = discordSRV;
+        if (current == null) return "DiscordSRV is unavailable";
+        if (!current.isEnabled()) return "DiscordSRV is disabled";
+        if (!DiscordSRV.isReady) return "DiscordSRV initialization completed without becoming ready";
+        if (current.getAccountLinkManager() == null) return "DiscordSRV account linking is unavailable";
+        if (HeraldConfig.ipAuthenticationEnabled && ipAuthManager == null) {
+            return "Herald IP authentication is unavailable";
+        }
+        return "a required authentication component is unavailable";
     }
 
     public void serverStarted(FMLServerStartedEvent event) {

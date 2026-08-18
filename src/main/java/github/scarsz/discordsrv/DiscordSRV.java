@@ -611,7 +611,16 @@ public class DiscordSRV extends JavaPlugin {
                 .getName());
 
         version = getDescription().getVersion();
-        Thread initThread = new Thread(this::init, "DiscordSRV - Initialization");
+        Thread initThread = new Thread(() -> {
+            boolean completedNormally = false;
+            try {
+                init();
+                completedNormally = true;
+            } finally {
+                com.ntnh.herald.HeraldDiscordSRV.getInstance()
+                    .onDiscordInitializationFinished(completedNormally);
+            }
+        }, "DiscordSRV - Initialization");
         initThread.setUncaughtExceptionHandler((t, e) -> {
             // make DiscordSRV go red in /plugins
             disablePlugin();
