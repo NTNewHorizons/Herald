@@ -17,6 +17,7 @@
 package github.scarsz.discordsrv.modules.requirelink;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 
 import net.dv8tion.jda.api.entities.Guild;
@@ -44,6 +45,7 @@ import github.scarsz.discordsrv.util.SchedulerUtil;
 
 public class RequireLinkModule implements Listener {
 
+    private static final long DISCORD_LOOKUP_TIMEOUT_SECONDS = 10;
     private static final String KICK_REASON_CONFIG_ERROR = AsyncPlayerPreLoginEvent.Result.KICK_OTHER.name();
     private static final String KICK_REASON_NOT_ALLOWED = AsyncPlayerPreLoginEvent.Result.KICK_OTHER.name();
 
@@ -176,7 +178,8 @@ public class RequireLinkModule implements Listener {
                 boolean mustBePresent = mustBeInDiscordServerOption.as(Boolean.class);
                 boolean isPresent = DiscordUtil.getJda()
                     .retrieveUserById(discordId)
-                    .complete()
+                    .submit()
+                    .get(DISCORD_LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                     .getMutualGuilds()
                     .size() > 0;
                 if (mustBePresent && !isPresent) {
@@ -212,7 +215,8 @@ public class RequireLinkModule implements Listener {
                             .getGuildById(guildId);
                         if (guild != null) {
                             boolean inServer = guild.retrieveMemberById(discordId)
-                                .complete() != null;
+                                .submit()
+                                .get(DISCORD_LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS) != null;
                             if (!inServer) {
                                 DiscordSRV.debug(
                                     Debug.REQUIRE_LINK,
@@ -289,6 +293,11 @@ public class RequireLinkModule implements Listener {
                         .accept(KICK_REASON_NOT_ALLOWED, MessageUtil.translateLegacy(getSubscriberRoleKickMessage()));
                 }
             }
+        } catch (InterruptedException exception) {
+            Thread.currentThread()
+                .interrupt();
+            DiscordSRV.debug(Debug.REQUIRE_LINK, "Authentication was cancelled for player " + playerName);
+            disallow.accept(KICK_REASON_CONFIG_ERROR, MessageUtil.translateLegacy(getUnknownFailureKickMessage()));
         } catch (Exception exception) {
             DiscordSRV.error("Failed to check player: " + playerName, exception);
             disallow.accept(KICK_REASON_CONFIG_ERROR, MessageUtil.translateLegacy(getUnknownFailureKickMessage()));

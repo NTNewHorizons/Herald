@@ -49,6 +49,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     private final static Pattern JDBC_PATTERN = Pattern.compile(
         "^(?<proto>\\w+):(?<engine>\\w+)://(?<host>.+?)(:(?<port>\\d{1,5}|PORT))?/(?<name>\\w+)\\??(?<params>.+)$");
     private final static long EXPIRY_TIME_ONLINE = TimeUnit.MINUTES.toMillis(3);
+    private static final int AUTHENTICATION_QUERY_TIMEOUT_SECONDS = 10;
 
     private final Connection connection;
     private final String database;
@@ -279,6 +280,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
     private void dropExpiredCodes() {
         try (final PreparedStatement statement = connection
             .prepareStatement("delete from " + codesTable + " where `expiration` < ?")) {
+            setAuthenticationQueryTimeout(statement);
             statement.setLong(1, System.currentTimeMillis());
             statement.executeUpdate();
         } catch (SQLException e) {
@@ -294,6 +296,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         Map<String, UUID> codes = new HashMap<>();
 
         try (final PreparedStatement statement = connection.prepareStatement("select * from " + codesTable)) {
+            setAuthenticationQueryTimeout(statement);
             try (final ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
                     codes.put(result.getString("code"), UUID.fromString(result.getString("uuid")));
@@ -342,6 +345,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             .anyMatch(playerUuid::equals)) {
             try (final PreparedStatement statement = connection
                 .prepareStatement("delete from " + codesTable + " where `uuid` = ?")) {
+                setAuthenticationQueryTimeout(statement);
                 statement.setString(1, playerUuid.toString());
                 statement.executeUpdate();
             } catch (SQLException e) {
@@ -358,6 +362,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
 
         try (final PreparedStatement statement = connection
             .prepareStatement("insert into " + codesTable + " (`code`, `uuid`, `expiration`) VALUES (?, ?, ?)")) {
+            setAuthenticationQueryTimeout(statement);
             statement.setString(1, code);
             statement.setString(2, playerUuid.toString());
             statement.setLong(3, System.currentTimeMillis() + TimeUnit.MINUTES.toMillis(5));
@@ -463,6 +468,7 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         String discordId = null;
         try (final PreparedStatement statement = connection
             .prepareStatement("select discord from " + accountsTable + " where uuid = ?")) {
+            setAuthenticationQueryTimeout(statement);
             statement.setString(1, uuid.toString());
             try (final ResultSet result = statement.executeQuery()) {
                 if (result.next()) {
@@ -473,6 +479,17 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
             DiscordSRV.error(e);
         }
         return discordId;
+    }
+
+    private static void setAuthenticationQueryTimeout(PreparedStatement statement) {
+        try {
+            statement.setQueryTimeout(AUTHENTICATION_QUERY_TIMEOUT_SECONDS);
+        } catch (SQLFeatureNotSupportedException | AbstractMethodError ignored) {
+            // Older JDBC drivers may not implement statement timeouts; the bounded worker pool still limits impact.
+        } catch (SQLException e) {
+            DiscordSRV
+                .debug(Debug.ACCOUNT_LINKING, "Could not set JDBC authentication query timeout: " + e.getMessage());
+        }
     }
 
     @Override
