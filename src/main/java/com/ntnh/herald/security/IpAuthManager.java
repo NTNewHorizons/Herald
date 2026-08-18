@@ -29,7 +29,7 @@ public final class IpAuthManager implements Closeable {
     private final SecureRandom secureRandom;
     private final Object challengeLock = new Object();
     private final Map<String, IpAuthChallenge> challenges = new HashMap<>();
-    private final Map<UUID, InitialLinkEnrollment> initialLinkEnrollments = new HashMap<>();
+    private final Map<String, InitialLinkEnrollment> initialLinkEnrollments = new HashMap<>();
     private final int codeBound;
 
     public IpAuthManager(IpAuthSettings settings, IpAuthStore store, IpAuthAuditLogger auditLogger,
@@ -164,9 +164,10 @@ public final class IpAuthManager implements Closeable {
             selection.sendDm);
     }
 
-    /** Remembers the first exact login IP that caused DiscordSRV to issue an account-linking code. */
-    public boolean rememberInitialLinkAttempt(String username, UUID uuid, InetAddress inetAddress) {
+    /** Binds the exact login IP to the exact account-linking code issued for that attempt. */
+    public boolean rememberInitialLinkAttempt(String linkingCode, String username, UUID uuid, InetAddress inetAddress) {
         if (!settings.isEnabled() || !settings.isRequireInitialVerification()
+            || linkingCode == null
             || inetAddress == null
             || store.hasTrustedIps(uuid)) return false;
 
@@ -175,45 +176,52 @@ public final class IpAuthManager implements Closeable {
         synchronized (challengeLock) {
             purgeExpiredLocked(now);
             if (store.hasTrustedIps(uuid)) {
-                initialLinkEnrollments.remove(uuid);
+                removeInitialLinkEnrollmentsLocked(uuid);
                 return false;
             }
-            InitialLinkEnrollment existing = initialLinkEnrollments.get(uuid);
-            if (existing != null) return existing.getAddress()
-                .equals(address);
-            initialLinkEnrollments
-                .put(uuid, new InitialLinkEnrollment(address, username, safeAdd(now, settings.getCodeExpiryMillis())));
+            InitialLinkEnrollment existing = initialLinkEnrollments.get(linkingCode);
+            if (existing != null) return existing.matches(uuid, address);
+            initialLinkEnrollments.put(
+                linkingCode,
+                new InitialLinkEnrollment(
+                    linkingCode,
+                    uuid,
+                    address,
+                    username,
+                    safeAdd(now, settings.getCodeExpiryMillis())));
             return true;
         }
     }
 
     /**
-     * Enrolls a captured initial IP only after DiscordSRV reports a successful link and its current link manager
-     * confirms that the UUID remains linked. Existing trusted-IP records are never expanded by this path.
+     * Enrolls the IP bound to the exact linking code DiscordSRV just consumed. Existing trusted-IP records are never
+     * expanded by this path.
      */
-    public boolean completeInitialLinkEnrollment(UUID uuid, String linkedDiscordId) {
+    public boolean completeInitialLinkEnrollment(String linkingCode, UUID uuid, String linkedDiscordId) {
         if (!settings.isEnabled() || !settings.isRequireInitialVerification()) return false;
 
         long now = clock.getAsLong();
         InitialLinkEnrollment enrollment;
         synchronized (challengeLock) {
             purgeExpiredLocked(now);
-            enrollment = initialLinkEnrollments.get(uuid);
+            enrollment = initialLinkEnrollments.get(linkingCode);
         }
-        if (enrollment == null || linkedDiscordId == null || !linkedDiscordId.equals(resolveCurrentDiscordId(uuid)))
+        if (enrollment == null || !enrollment.getUuid()
+            .equals(uuid) || linkedDiscordId == null || !linkedDiscordId.equals(resolveCurrentDiscordId(uuid)))
             return false;
 
         String currentDiscordId;
         IpAuthStore.Authorization authorization;
         synchronized (challengeLock) {
             purgeExpiredLocked(clock.getAsLong());
-            if (initialLinkEnrollments.get(uuid) != enrollment) return false;
+            if (initialLinkEnrollments.get(linkingCode) != enrollment || enrollment.isExpired(clock.getAsLong()))
+                return false;
 
             // Re-check while consuming so an unlink cannot turn a pending enrollment into a trusted IP.
             currentDiscordId = resolveCurrentDiscordId(uuid);
             if (!linkedDiscordId.equals(currentDiscordId)) return false;
             if (store.hasTrustedIps(uuid)) {
-                initialLinkEnrollments.remove(uuid);
+                removeInitialLinkEnrollmentsLocked(uuid);
                 return false;
             }
             try {
@@ -222,7 +230,7 @@ public final class IpAuthManager implements Closeable {
                 LOG.error("Could not persist the Discord-linking login IP for " + uuid, e);
                 return false;
             }
-            initialLinkEnrollments.remove(uuid);
+            removeInitialLinkEnrollmentsLocked(uuid);
             challenges.remove(challengeKey(uuid, enrollment.getAddress()));
         }
 
@@ -314,15 +322,14 @@ public final class IpAuthManager implements Closeable {
         synchronized (challengeLock) {
             // Authorization paths acquire challengeLock before the store; keep the same order to avoid deadlocks.
             store.reset(uuid);
-            Iterator<Map.Entry<String, IpAuthChallenge>> iterator = challenges.entrySet()
+            Iterator<IpAuthChallenge> iterator = challenges.values()
                 .iterator();
             while (iterator.hasNext()) {
                 if (iterator.next()
-                    .getValue()
                     .getUuid()
                     .equals(uuid)) iterator.remove();
             }
-            initialLinkEnrollments.remove(uuid);
+            removeInitialLinkEnrollmentsLocked(uuid);
         }
     }
 
@@ -371,16 +378,24 @@ public final class IpAuthManager implements Closeable {
     }
 
     private void purgeExpiredLocked(long now) {
-        Iterator<Map.Entry<String, IpAuthChallenge>> iterator = challenges.entrySet()
+        Iterator<IpAuthChallenge> iterator = challenges.values()
             .iterator();
         while (iterator.hasNext()) if (iterator.next()
-            .getValue()
             .isExpired(now)) iterator.remove();
-        Iterator<Map.Entry<UUID, InitialLinkEnrollment>> enrollmentIterator = initialLinkEnrollments.entrySet()
+        Iterator<InitialLinkEnrollment> enrollmentIterator = initialLinkEnrollments.values()
             .iterator();
         while (enrollmentIterator.hasNext()) if (enrollmentIterator.next()
-            .getValue()
             .isExpired(now)) enrollmentIterator.remove();
+    }
+
+    private void removeInitialLinkEnrollmentsLocked(UUID uuid) {
+        Iterator<InitialLinkEnrollment> iterator = initialLinkEnrollments.values()
+            .iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next()
+                .getUuid()
+                .equals(uuid)) iterator.remove();
+        }
     }
 
     private static String challengeKey(UUID uuid, IpAddress address) {
@@ -433,14 +448,23 @@ public final class IpAuthManager implements Closeable {
 
     private static final class InitialLinkEnrollment {
 
+        private final String linkingCode;
+        private final UUID uuid;
         private final IpAddress address;
         private final String username;
         private final long expiresAt;
 
-        private InitialLinkEnrollment(IpAddress address, String username, long expiresAt) {
+        private InitialLinkEnrollment(String linkingCode, UUID uuid, IpAddress address, String username,
+            long expiresAt) {
+            this.linkingCode = linkingCode;
+            this.uuid = uuid;
             this.address = address;
             this.username = username;
             this.expiresAt = expiresAt;
+        }
+
+        UUID getUuid() {
+            return uuid;
         }
 
         IpAddress getAddress() {
@@ -453,6 +477,10 @@ public final class IpAuthManager implements Closeable {
 
         boolean isExpired(long now) {
             return now >= expiresAt;
+        }
+
+        boolean matches(UUID expectedUuid, IpAddress expectedAddress) {
+            return linkingCode != null && uuid.equals(expectedUuid) && address.equals(expectedAddress);
         }
     }
 

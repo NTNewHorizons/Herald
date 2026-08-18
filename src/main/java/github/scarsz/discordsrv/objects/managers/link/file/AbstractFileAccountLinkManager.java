@@ -29,6 +29,8 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 
+import com.ntnh.herald.HeraldDiscordSRV;
+
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.managers.link.AbstractAccountLinkManager;
@@ -116,9 +118,11 @@ public abstract class AbstractFileAccountLinkManager extends AbstractAccountLink
         // strip the code to get rid of non-numeric characters
         linkCode = linkCode.replaceAll("[^0-9]", "");
 
-        if (linkingCodes.containsKey(linkCode)) {
-            link(discordId, linkingCodes.get(linkCode));
-            linkingCodes.remove(linkCode);
+        UUID linkedUuid = linkingCodes.remove(linkCode);
+        if (linkedUuid != null) {
+            link(discordId, linkedUuid);
+            HeraldDiscordSRV.getInstance()
+                .completeInitialLinkEnrollment(linkCode, linkedUuid, discordId);
 
             OfflinePlayer player = Bukkit.getOfflinePlayer(getUuid(discordId));
             if (player.isOnline()) {

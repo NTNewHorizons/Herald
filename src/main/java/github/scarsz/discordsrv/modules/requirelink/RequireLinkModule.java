@@ -152,7 +152,7 @@ public class RequireLinkModule implements Listener {
                     .getAccountLinkManager()
                     .generateCode(playerUuid);
                 HeraldDiscordSRV.getInstance()
-                    .rememberInitialLinkAttempt(playerName, playerUuid, ip);
+                    .rememberInitialLinkAttempt(code, playerName, playerUuid, ip);
                 String inviteLink = DiscordSRV.config()
                     .getString("DiscordInviteLink");
 
