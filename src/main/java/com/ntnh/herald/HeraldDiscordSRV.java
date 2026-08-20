@@ -243,14 +243,24 @@ public class HeraldDiscordSRV {
         return authenticationReadiness.refreshAvailability(true, connected, permanentFailure, reason);
     }
 
+    /** Returns a fail-closed message when a specific authentication check requires live Discord. */
+    public String getDiscordAuthenticationDependencyFailureMessage() {
+        AuthenticationReadiness.State state = authenticationStateForLogin();
+        if (state == AuthenticationReadiness.State.READY) return null;
+        if (state == AuthenticationReadiness.State.LOADING) {
+            return "Herald is still loading. Please try again shortly.";
+        }
+        if (state == AuthenticationReadiness.State.UNAVAILABLE) {
+            return "Herald authentication is temporarily unavailable. Please try again shortly.";
+        }
+        return "Herald failed to load. Please contact a server administrator.";
+    }
+
     public LoginDecision checkLoginBeforeAdmission(String username, UUID uuid, InetAddress address,
         InetSocketAddress socketAddress) {
         AuthenticationReadiness.State state = authenticationStateForLogin();
         if (state == AuthenticationReadiness.State.LOADING) {
             return LoginDecision.reject("Herald is still loading. Please try again shortly.");
-        }
-        if (state == AuthenticationReadiness.State.UNAVAILABLE) {
-            return LoginDecision.reject("Herald authentication is temporarily unavailable. Please try again shortly.");
         }
         if (state == AuthenticationReadiness.State.FAILED) {
             return LoginDecision.reject("Herald failed to load. Please contact a server administrator.");
@@ -281,8 +291,17 @@ public class HeraldDiscordSRV {
                 "Herald IP authentication is temporarily unavailable.\n\nThe connection was rejected for safety.");
         }
 
+        state = authenticationStateForLogin();
+        if (state == AuthenticationReadiness.State.LOADING) {
+            return LoginDecision.reject("Herald is still loading. Please try again shortly.");
+        }
+        if (state == AuthenticationReadiness.State.FAILED) {
+            return LoginDecision.reject("Herald failed to load. Please contact a server administrator.");
+        }
+
         if (ipAuthManager != null) {
-            IpAuthManager.LoginResult ipAuthResult = ipAuthManager.checkLogin(username, uuid, address);
+            IpAuthManager.LoginResult ipAuthResult = ipAuthManager
+                .checkLogin(username, uuid, address, state == AuthenticationReadiness.State.READY);
             if (!ipAuthResult.isAllowed()) return LoginDecision.reject(ipAuthResult.getKickMessage());
         }
 

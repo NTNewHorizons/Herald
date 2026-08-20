@@ -130,20 +130,11 @@ public class RequireLinkModule implements Listener {
                 }
             }
 
-            if (!DiscordSRV.isReady) {
-                DiscordSRV.debug(
-                    Debug.REQUIRE_LINK,
-                    "Player " + playerName + " connecting before DiscordSRV is ready, denying login");
-                disallow.accept(
-                    KICK_REASON_CONFIG_ERROR,
-                    MessageUtil.translateLegacy(getDiscordSRVStillStartingKickMessage()));
-                return;
-            }
-
             String discordId = DiscordSRV.getPlugin()
                 .getAccountLinkManager()
                 .getDiscordIdBypassCache(playerUuid);
             if (discordId == null) {
+                if (!requireLiveDiscord(playerName, "account registration", disallow)) return;
                 Member botMember = DiscordSRV.getPlugin()
                     .getMainGuild()
                     .getSelfMember();
@@ -176,26 +167,29 @@ public class RequireLinkModule implements Listener {
                 .dget("Require linked account to play.Must be in Discord server");
             if (mustBeInDiscordServerOption.is(Boolean.class)) {
                 boolean mustBePresent = mustBeInDiscordServerOption.as(Boolean.class);
-                boolean isPresent = DiscordUtil.getJda()
-                    .retrieveUserById(discordId)
-                    .submit()
-                    .get(DISCORD_LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                    .getMutualGuilds()
-                    .size() > 0;
-                if (mustBePresent && !isPresent) {
-                    DiscordSRV.debug(
-                        Debug.REQUIRE_LINK,
-                        "Player " + playerName + "'s linked Discord account is NOT present, denying login");
-                    disallow.accept(
-                        KICK_REASON_NOT_ALLOWED,
-                        MessageUtil.translateLegacy(
-                            DiscordSRV.config()
-                                .getString("Require linked account to play.Messages.Not in server"))
-                            .replace(
-                                "{INVITE}",
+                if (mustBePresent) {
+                    if (!requireLiveDiscord(playerName, "Discord guild membership", disallow)) return;
+                    boolean isPresent = DiscordUtil.getJda()
+                        .retrieveUserById(discordId)
+                        .submit()
+                        .get(DISCORD_LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                        .getMutualGuilds()
+                        .size() > 0;
+                    if (!isPresent) {
+                        DiscordSRV.debug(
+                            Debug.REQUIRE_LINK,
+                            "Player " + playerName + "'s linked Discord account is NOT present, denying login");
+                        disallow.accept(
+                            KICK_REASON_NOT_ALLOWED,
+                            MessageUtil.translateLegacy(
                                 DiscordSRV.config()
-                                    .getString("DiscordInviteLink")));
-                    return;
+                                    .getString("Require linked account to play.Messages.Not in server"))
+                                .replace(
+                                    "{INVITE}",
+                                    DiscordSRV.config()
+                                        .getString("DiscordInviteLink")));
+                        return;
+                    }
                 }
             } else {
                 Set<String> targets = new HashSet<>();
@@ -208,6 +202,10 @@ public class RequireLinkModule implements Listener {
                         mustBeInDiscordServerOption.convert()
                             .intoString());
                 }
+
+                boolean hasGuildTarget = targets.stream()
+                    .anyMatch(StringUtils::isNotBlank);
+                if (hasGuildTarget && !requireLiveDiscord(playerName, "Discord guild membership", disallow)) return;
 
                 for (String guildId : targets) {
                     try {
@@ -248,6 +246,7 @@ public class RequireLinkModule implements Listener {
             List<String> subRoleIds = DiscordSRV.config()
                 .getStringList("Require linked account to play.Subscriber role.Subscriber roles");
             if (isSubRoleRequired() && !subRoleIds.isEmpty()) {
+                if (!requireLiveDiscord(playerName, "Discord subscriber roles", disallow)) return;
                 int failedRoleIds = 0;
                 int matches = 0;
 
@@ -302,6 +301,17 @@ public class RequireLinkModule implements Listener {
             DiscordSRV.error("Failed to check player: " + playerName, exception);
             disallow.accept(KICK_REASON_CONFIG_ERROR, MessageUtil.translateLegacy(getUnknownFailureKickMessage()));
         }
+    }
+
+    private boolean requireLiveDiscord(String playerName, String requirement, BiConsumer<String, String> disallow) {
+        String unavailableMessage = HeraldDiscordSRV.getInstance()
+            .getDiscordAuthenticationDependencyFailureMessage();
+        if (unavailableMessage == null) return true;
+        DiscordSRV.debug(
+            Debug.REQUIRE_LINK,
+            "Player " + playerName + " requires " + requirement + " while Discord is unavailable, denying login");
+        disallow.accept(KICK_REASON_CONFIG_ERROR, MessageUtil.translateLegacy(unavailableMessage));
+        return false;
     }
 
     public void noticePlayerUnlink(Player player) {
@@ -381,11 +391,6 @@ public class RequireLinkModule implements Listener {
         return new HashSet<>(
             DiscordSRV.config()
                 .getStringList("Require linked account to play.Bypass names"));
-    }
-
-    private String getDiscordSRVStillStartingKickMessage() {
-        return DiscordSRV.config()
-            .getString("Require linked account to play.Messages.DiscordSRV still starting");
     }
 
     private String getFailedToFindRoleKickMessage() {
