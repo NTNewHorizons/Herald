@@ -640,7 +640,7 @@ public class DiscordSRV extends JavaPlugin {
                     .get(0)
                     .getWorldFolder()
                     .getAbsolutePath(),
-                "/playerdata");
+                "playerdata");
         }
     }
 
