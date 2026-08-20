@@ -51,6 +51,8 @@ import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.WorldServer;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
@@ -632,16 +634,6 @@ public class DiscordSRV extends JavaPlugin {
                     + " for more information. Can't figure it out? Go to https://discordsrv.com/discord for help");
         });
         initThread.start();
-
-        if (Bukkit.getWorlds()
-            .size() > 0) {
-            playerDataFolder = new File(
-                Bukkit.getWorlds()
-                    .get(0)
-                    .getWorldFolder()
-                    .getAbsolutePath(),
-                "playerdata");
-        }
     }
 
     public void disablePlugin() {
@@ -2678,30 +2670,31 @@ public class DiscordSRV extends JavaPlugin {
         return responses;
     }
 
-    private static File playerDataFolder = null;
-
-    /**
-     * Herald-specific: worlds are not loaded yet when {@link DiscordSRV#onEnable()} runs during Forge init, so the
-     * player-data folder is refreshed whenever a world finishes loading.
-     */
-    public static void updatePlayerDataFolder() {
-        if (Bukkit.getWorlds()
-            .size() > 0) {
-            File folder = Bukkit.getWorlds()
-                .get(0)
-                .getWorldFolder();
-            if (folder != null) {
-                playerDataFolder = new File(folder, "playerdata");
+    /** Resolves Forge's live primary world because the Bukkit world cache may not yet contain the loaded world. */
+    public static int getTotalPlayerCount() {
+        File playerDataFolder = null;
+        MinecraftServer server = MinecraftServer.getServer();
+        if (server != null && server.worldServers != null && server.worldServers.length > 0) {
+            WorldServer primaryWorld = server.worldServers[0];
+            if (primaryWorld != null && primaryWorld.getChunkSaveLocation() != null) {
+                playerDataFolder = new File(primaryWorld.getChunkSaveLocation(), "playerdata");
             }
         }
-    }
 
-    public static int getTotalPlayerCount() {
-        if (playerDataFolder == null) return 0;
-        File[] playerFiles = playerDataFolder.listFiles(
-            f -> f.getName()
-                .endsWith(".dat"));
-        return playerFiles != null ? playerFiles.length : 0;
+        int totalPlayers = 0;
+        if (playerDataFolder != null) {
+            File[] playerFiles = playerDataFolder.listFiles(
+                f -> f.getName()
+                    .endsWith(".dat"));
+            if (playerFiles != null) totalPlayers = playerFiles.length;
+        }
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (playerDataFolder == null || !new File(playerDataFolder, player.getUniqueId() + ".dat").isFile()) {
+                totalPlayers++;
+            }
+        }
+        return totalPlayers;
     }
 
     /**
