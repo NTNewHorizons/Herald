@@ -37,6 +37,18 @@ public final class IpAuthAuditLogger implements Closeable {
 
     public synchronized void failedIpCheck(long timestamp, String username, UUID uuid, String ip, String discordId,
         boolean initialEnrollment, boolean challengeCreated) {
+        failedIpCheck(
+            timestamp,
+            username,
+            uuid,
+            ip,
+            discordId,
+            initialEnrollment,
+            challengeCreated ? "created" : "reused");
+    }
+
+    public synchronized void failedIpCheck(long timestamp, String username, UUID uuid, String ip, String discordId,
+        boolean initialEnrollment, String challengeState) {
         write(
             timestamp,
             "failed_ip_check",
@@ -44,7 +56,7 @@ public final class IpAuthAuditLogger implements Closeable {
                 + field("ip", ip)
                 + field("discord_id", discordId)
                 + field("enrollment", initialEnrollment ? "initial" : "ip_change")
-                + field("challenge", challengeCreated ? "created" : "reused"));
+                + field("challenge", challengeState));
     }
 
     public synchronized void successfulAuthorization(long timestamp, String username, UUID uuid, String ip,
