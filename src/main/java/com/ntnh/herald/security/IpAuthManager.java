@@ -409,7 +409,7 @@ public final class IpAuthManager implements Closeable {
     private static String buildDmMessage(String username, IpAddress address, String code) {
         return "\u26a0 New Minecraft login IP\n\nSomeone attempted to join as " + username
             + " from "
-            + address.getText()
+            + address.getDisplayText()
             + ".\n\nThat IP is not currently authorized.\n\nTo authorize it, reply to this bot with:\n\nv"
             + code
             + "\n\nIf this was not you, do nothing. The connection was rejected.";

@@ -39,6 +39,12 @@ public final class IpAddress {
         return text;
     }
 
+    /** Uses dotted IPv4 for IPv4-mapped IPv6 addresses while preserving native IPv6 presentation. */
+    public String getDisplayText() {
+        if (!isIpv4MappedAddress(bytes)) return text;
+        return (bytes[12] & 0xff) + "." + (bytes[13] & 0xff) + "." + (bytes[14] & 0xff) + "." + (bytes[15] & 0xff);
+    }
+
     String getKey() {
         return key;
     }
@@ -52,6 +58,12 @@ public final class IpAddress {
             result[i * 2 + 1] = digits[current & 0x0f];
         }
         return new String(result);
+    }
+
+    private static boolean isIpv4MappedAddress(byte[] value) {
+        if (value.length != 16 || value[10] != (byte) 0xff || value[11] != (byte) 0xff) return false;
+        for (int i = 0; i < 10; i++) if (value[i] != 0) return false;
+        return true;
     }
 
     @Override
