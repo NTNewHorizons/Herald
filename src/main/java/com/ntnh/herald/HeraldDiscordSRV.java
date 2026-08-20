@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.UUID;
+import java.util.concurrent.Future;
 
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
@@ -29,6 +31,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.command.CraftCommandSender;
+import org.bukkit.craftbukkit.entity.CraftLoginPlayer;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
@@ -44,6 +47,9 @@ import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import com.mojang.authlib.GameProfile;
+import com.ntnh.herald.auth.LoginDecision;
+import com.ntnh.herald.auth.PreAdmissionLoginHandler;
 import com.ntnh.herald.security.IpAuthAuditLogger;
 import com.ntnh.herald.security.IpAuthManager;
 import com.ntnh.herald.security.IpAuthStore;
@@ -68,6 +74,7 @@ public class HeraldDiscordSRV {
 
     private DiscordSRV discordSRV;
     private CraftServer craftServer;
+    private final PreAdmissionLoginHandler preAdmissionLoginHandler = new PreAdmissionLoginHandler();
     private IpAuthManager ipAuthManager;
 
     public HeraldDiscordSRV() {
@@ -196,6 +203,49 @@ public class HeraldDiscordSRV {
         return ipAuthManager != null && ipAuthManager.recognizesVerificationMessage(content);
     }
 
+    public Future<LoginDecision> beginPreAdmissionLogin(GameProfile profile, SocketAddress remoteAddress) {
+        return preAdmissionLoginHandler.begin(profile, remoteAddress);
+    }
+
+    public LoginDecision checkLoginBeforeAdmission(String username, UUID uuid, InetAddress address,
+        InetSocketAddress socketAddress) {
+        // The explicit loading/failure gate is added in the follow-up readiness PR. Preserve the bridge's prior
+        // behavior here when DiscordSRV is disabled so this change remains limited to admission timing.
+        if (discordSRV == null || !discordSRV.isEnabled()) return LoginDecision.allow();
+        if (username == null || uuid == null || address == null || socketAddress == null) {
+            return LoginDecision.reject("Herald could not determine the source of this login. Please try again.");
+        }
+
+        AsyncPlayerPreLoginEvent preLoginEvent = new AsyncPlayerPreLoginEvent(username, uuid, address);
+        Bukkit.getPluginManager()
+            .callEvent(preLoginEvent);
+        if (!preLoginEvent.getLoginResult()
+            .allows()) {
+            return LoginDecision.reject(preLoginEvent.getKickMessage());
+        }
+
+        CraftLoginPlayer loginPlayer = new CraftLoginPlayer(new GameProfile(uuid, username), socketAddress);
+        PlayerLoginEvent loginEvent = new PlayerLoginEvent(loginPlayer, address);
+        Bukkit.getPluginManager()
+            .callEvent(loginEvent);
+        if (loginEvent.getResult() != PlayerLoginEvent.Result.ALLOWED) {
+            return LoginDecision.reject(loginEvent.getKickMessage());
+        }
+
+        if (HeraldConfig.ipAuthenticationEnabled && ipAuthManager == null) {
+            return LoginDecision.reject(
+                "Herald IP authentication is temporarily unavailable.\n\nThe connection was rejected for safety.");
+        }
+
+        if (ipAuthManager != null) {
+            IpAuthManager.LoginResult ipAuthResult = ipAuthManager.checkLogin(username, uuid, address);
+            if (!ipAuthResult.isAllowed()) return LoginDecision.reject(ipAuthResult.getKickMessage());
+        }
+
+        loginPlayer.markAdmissionAccepted();
+        return LoginDecision.allow();
+    }
+
     public void serverStarted(FMLServerStartedEvent event) {
         if (discordSRV == null) return;
         // Channel placeholders may query ServerConfigurationManager, which Forge does not create until this event.
@@ -306,43 +356,6 @@ public class HeraldDiscordSRV {
         EntityPlayerMP player = (EntityPlayerMP) event.player;
         CraftPlayer craftPlayer = craftServer.getCraftPlayer(player);
         if (craftPlayer == null) return;
-
-        InetAddress address = getPlayerAddress(player);
-        AsyncPlayerPreLoginEvent preLoginEvent = new AsyncPlayerPreLoginEvent(
-            craftPlayer.getName(),
-            craftPlayer.getUniqueId(),
-            address);
-        Bukkit.getPluginManager()
-            .callEvent(preLoginEvent);
-        if (!preLoginEvent.getLoginResult()
-            .allows()) {
-            kickPlayer(player, preLoginEvent.getKickMessage());
-            return;
-        }
-
-        PlayerLoginEvent loginEvent = new PlayerLoginEvent(craftPlayer, address);
-        Bukkit.getPluginManager()
-            .callEvent(loginEvent);
-        if (loginEvent.getResult() != PlayerLoginEvent.Result.ALLOWED) {
-            kickPlayer(player, loginEvent.getKickMessage());
-            return;
-        }
-
-        if (HeraldConfig.ipAuthenticationEnabled && ipAuthManager == null) {
-            kickPlayer(
-                player,
-                "Herald IP authentication is temporarily unavailable.\n\nThe connection was rejected for safety.");
-            return;
-        }
-
-        if (ipAuthManager != null) {
-            IpAuthManager.LoginResult ipAuthResult = ipAuthManager
-                .checkLogin(craftPlayer.getName(), craftPlayer.getUniqueId(), address);
-            if (!ipAuthResult.isAllowed()) {
-                kickPlayer(player, ipAuthResult.getKickMessage());
-                return;
-            }
-        }
 
         PlayerJoinEvent joinEvent = new PlayerJoinEvent(craftPlayer, craftPlayer.getName() + " joined the game");
         Bukkit.getPluginManager()
@@ -469,6 +482,7 @@ public class HeraldDiscordSRV {
     }
 
     public void shutdown(FMLServerStoppingEvent event) {
+        preAdmissionLoginHandler.close();
         processAlert(event);
         if (ipAuthManager != null) {
             try {
@@ -501,19 +515,5 @@ public class HeraldDiscordSRV {
 
     public boolean isEnabled() {
         return discordSRV != null && discordSRV.isEnabled() && DiscordSRV.isReady;
-    }
-
-    private InetAddress getPlayerAddress(EntityPlayerMP player) {
-        if (player == null || player.playerNetServerHandler == null) return null;
-        SocketAddress socketAddress = player.playerNetServerHandler.netManager.getSocketAddress();
-        if (socketAddress instanceof InetSocketAddress) {
-            return ((InetSocketAddress) socketAddress).getAddress();
-        }
-        return null;
-    }
-
-    private void kickPlayer(EntityPlayerMP player, String message) {
-        if (player == null || player.playerNetServerHandler == null) return;
-        player.playerNetServerHandler.kickPlayerFromServer(message == null ? "" : message);
     }
 }
