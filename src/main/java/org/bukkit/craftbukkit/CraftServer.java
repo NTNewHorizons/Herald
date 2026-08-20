@@ -77,6 +77,12 @@ public class CraftServer implements Server {
         return cp;
     }
 
+    public synchronized void addWorld(net.minecraft.world.World world) {
+        if (!(world instanceof WorldServer)) return;
+        WorldServer worldServer = (WorldServer) world;
+        if (!worldCache.containsKey(worldServer)) worldCache.put(worldServer, new CraftWorld(worldServer));
+    }
+
     @Override
     public String getName() {
         return "Herald";
