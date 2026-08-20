@@ -34,6 +34,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
+import com.ntnh.herald.HeraldDiscordSRV;
+
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.objects.ExpiringDualHashBidiMap;
@@ -401,12 +403,18 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
         if (uuid != null) {
             link(discordId, uuid);
 
+            int consumed = 0;
             try (final PreparedStatement statement = connection
                 .prepareStatement("delete from " + codesTable + " where `code` = ?")) {
                 statement.setString(1, code);
-                statement.executeUpdate();
+                consumed = statement.executeUpdate();
             } catch (SQLException e) {
                 DiscordSRV.error(e);
+            }
+
+            if (consumed > 0) {
+                HeraldDiscordSRV.getInstance()
+                    .completeInitialLinkEnrollment(code, uuid, discordId);
             }
 
             OfflinePlayer player = Bukkit.getOfflinePlayer(uuid);

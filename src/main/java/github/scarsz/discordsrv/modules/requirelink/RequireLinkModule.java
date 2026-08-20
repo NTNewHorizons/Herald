@@ -33,6 +33,8 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerPreLoginEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
 
+import com.ntnh.herald.HeraldDiscordSRV;
+
 import alexh.weak.Dynamic;
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
@@ -149,6 +151,8 @@ public class RequireLinkModule implements Listener {
                 String code = DiscordSRV.getPlugin()
                     .getAccountLinkManager()
                     .generateCode(playerUuid);
+                HeraldDiscordSRV.getInstance()
+                    .rememberInitialLinkAttempt(code, playerName, playerUuid, ip);
                 String inviteLink = DiscordSRV.config()
                     .getString("DiscordInviteLink");
 

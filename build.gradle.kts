@@ -3,6 +3,10 @@
 plugins {
     id("com.gtnewhorizons.gtnhconvention")
 }
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    useJUnitPlatform()
+}
 // Relocate everything bundled into the jar into a private namespace so Herald works standalone
 // AND alongside other mods: other mods on the pack (e.g. ForgeEssentials) ship their own
 // JDA/okhttp/okio and real org.bukkit classes, which otherwise collide with ours at runtime.

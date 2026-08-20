@@ -1,10 +1,10 @@
 package com.ntnh.herald;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Collections;
 
 import net.minecraft.command.ICommand;
 import net.minecraft.entity.EntityLivingBase;
@@ -44,6 +44,10 @@ import org.bukkit.event.server.ServerCommandEvent;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import com.ntnh.herald.security.IpAuthAuditLogger;
+import com.ntnh.herald.security.IpAuthManager;
+import com.ntnh.herald.security.IpAuthStore;
+
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
@@ -54,6 +58,8 @@ import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.PlayerEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
 import github.scarsz.discordsrv.DiscordSRV;
+import github.scarsz.discordsrv.objects.managers.AccountLinkManager;
+import github.scarsz.discordsrv.util.DiscordUtil;
 
 public class HeraldDiscordSRV {
 
@@ -62,6 +68,7 @@ public class HeraldDiscordSRV {
 
     private DiscordSRV discordSRV;
     private CraftServer craftServer;
+    private IpAuthManager ipAuthManager;
 
     public HeraldDiscordSRV() {
         instance = this;
@@ -90,7 +97,6 @@ public class HeraldDiscordSRV {
 
         try {
             discordSRV = new DiscordSRV();
-            applyForgeConfigOverrides();
             discordSRV.setEnabled(true);
         } catch (Exception e) {
             log.error("Failed to create DiscordSRV instance", e);
@@ -112,28 +118,11 @@ public class HeraldDiscordSRV {
                     .bus()
                     .register(this);
                 discordSRV.onEnable();
+                initializeIpAuthentication(dataFolder);
                 log.info("Herald DiscordSRV startup scheduled; waiting for Discord connection");
             } catch (Exception e) {
                 log.error("Failed to enable DiscordSRV", e);
             }
-        }
-    }
-
-    private void applyForgeConfigOverrides() {
-        if (StringUtils.isNotBlank(Config.discordToken)) {
-            DiscordSRV.config()
-                .setRuntimeValue("BotToken", Config.discordToken.trim());
-            log.info("Using Discord bot token from config/herald.cfg");
-        }
-        if (StringUtils.isNotBlank(Config.discordChatChannelId)) {
-            DiscordSRV.config()
-                .setRuntimeValue("Channels", Collections.singletonMap("global", Config.discordChatChannelId.trim()));
-            log.info("Using Discord chat channel from config/herald.cfg");
-        }
-        if (StringUtils.isNotBlank(Config.discordConsoleChannelId)) {
-            DiscordSRV.config()
-                .setRuntimeValue("DiscordConsoleChannelId", Config.discordConsoleChannelId.trim());
-            log.info("Using Discord console channel from config/herald.cfg");
         }
     }
 
@@ -145,7 +134,66 @@ public class HeraldDiscordSRV {
         if (discordSRV != null) {
             event.registerServerCommand(new CommandDiscord());
         }
+        if (ipAuthManager != null) event.registerServerCommand(new CommandHerald(ipAuthManager));
         processAlert(event);
+    }
+
+    private void initializeIpAuthentication(File dataFolder) throws IOException {
+        IpAuthStore store = new IpAuthStore(new File(dataFolder, "ip-auth-trusted-ips.tsv").toPath());
+        IpAuthAuditLogger auditLogger = new IpAuthAuditLogger(
+            new File(dataFolder, "logs/ip-auth-audit.log").toPath(),
+            HeraldConfig.ipAuthenticationAuditEnabled);
+        try {
+            ipAuthManager = new IpAuthManager(
+                HeraldConfig.ipAuthSettings(),
+                store,
+                auditLogger,
+                this::getCurrentDiscordId,
+                this::sendIpAuthenticationDm);
+        } catch (IOException e) {
+            try {
+                auditLogger.close();
+            } catch (IOException closeError) {
+                e.addSuppressed(closeError);
+            }
+            throw e;
+        }
+        log.info(
+            "Herald IP authentication " + (HeraldConfig.ipAuthenticationEnabled ? "enabled" : "disabled")
+                + "; DiscordSRV configuration remains authoritative for Discord behavior");
+    }
+
+    private String getCurrentDiscordId(java.util.UUID uuid) {
+        if (discordSRV == null) return null;
+        AccountLinkManager manager = discordSRV.getAccountLinkManager();
+        return manager != null ? manager.getDiscordId(uuid) : null;
+    }
+
+    private void sendIpAuthenticationDm(String discordId, String message) {
+        net.dv8tion.jda.api.JDA jda = DiscordUtil.getJda();
+        if (jda == null) {
+            log.warn("Could not send Herald IP-auth DM because JDA is not ready");
+            return;
+        }
+        jda.retrieveUserById(discordId)
+            .queue(
+                user -> user.openPrivateChannel()
+                    .queue(
+                        channel -> channel.sendMessage(message)
+                            .queue(
+                                ignored -> {},
+                                error -> log
+                                    .warn("Could not deliver Herald IP-auth DM to Discord ID " + discordId, error)),
+                        error -> log.warn("Could not open a DM channel for Discord ID " + discordId, error)),
+                error -> log.warn("Could not resolve Discord ID " + discordId + " for Herald IP-auth DM", error));
+    }
+
+    public String handleIpVerificationMessage(String content, String authorDiscordId) {
+        return ipAuthManager != null ? ipAuthManager.handleDiscordMessage(content, authorDiscordId) : null;
+    }
+
+    public boolean isIpVerificationMessage(String content) {
+        return ipAuthManager != null && ipAuthManager.recognizesVerificationMessage(content);
     }
 
     public void serverStarted(FMLServerStartedEvent event) {
@@ -280,9 +328,42 @@ public class HeraldDiscordSRV {
             return;
         }
 
+        if (HeraldConfig.ipAuthenticationEnabled && ipAuthManager == null) {
+            kickPlayer(
+                player,
+                "Herald IP authentication is temporarily unavailable.\n\nThe connection was rejected for safety.");
+            return;
+        }
+
+        if (ipAuthManager != null) {
+            IpAuthManager.LoginResult ipAuthResult = ipAuthManager
+                .checkLogin(craftPlayer.getName(), craftPlayer.getUniqueId(), address);
+            if (!ipAuthResult.isAllowed()) {
+                kickPlayer(player, ipAuthResult.getKickMessage());
+                return;
+            }
+        }
+
         PlayerJoinEvent joinEvent = new PlayerJoinEvent(craftPlayer, craftPlayer.getName() + " joined the game");
         Bukkit.getPluginManager()
             .callEvent(joinEvent);
+    }
+
+    public void rememberInitialLinkAttempt(String linkingCode, String username, java.util.UUID uuid,
+        String rawAddress) {
+        if (ipAuthManager == null || rawAddress == null) return;
+        try {
+            ipAuthManager.rememberInitialLinkAttempt(linkingCode, username, uuid, InetAddress.getByName(rawAddress));
+        } catch (java.net.UnknownHostException e) {
+            log.warn("Could not capture the IP that initiated Discord registration for " + uuid, e);
+        }
+    }
+
+    /** Completes only the enrollment bound to the exact code DiscordSRV successfully consumed. */
+    public void completeInitialLinkEnrollment(String linkingCode, java.util.UUID uuid, String discordId) {
+        if (ipAuthManager != null && ipAuthManager.completeInitialLinkEnrollment(linkingCode, uuid, discordId)) {
+            log.info("Automatically enrolled the Discord-linking login IP for Minecraft UUID " + uuid);
+        }
     }
 
     @SubscribeEvent
@@ -317,7 +398,6 @@ public class HeraldDiscordSRV {
     @SubscribeEvent
     public void onPlayerAchievement(AchievementEvent event) {
         if (discordSRV == null || !discordSRV.isEnabled()) return;
-        if (!Config.broadcastAchievements) return;
         if (event == null || event.achievement == null) return;
         if (!(event.entityPlayer instanceof EntityPlayerMP)) return;
 
@@ -390,6 +470,15 @@ public class HeraldDiscordSRV {
 
     public void shutdown(FMLServerStoppingEvent event) {
         processAlert(event);
+        if (ipAuthManager != null) {
+            try {
+                ipAuthManager.close();
+            } catch (IOException e) {
+                log.error("Could not close Herald IP-auth resources", e);
+            } finally {
+                ipAuthManager = null;
+            }
+        }
         if (discordSRV != null && discordSRV.isEnabled()) {
             log.info("Shutting down Herald DiscordSRV");
             discordSRV.onDisable();

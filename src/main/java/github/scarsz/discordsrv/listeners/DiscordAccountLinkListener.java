@@ -34,6 +34,8 @@ import net.dv8tion.jda.api.requests.RestAction;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 
+import com.ntnh.herald.HeraldDiscordSRV;
+
 import github.scarsz.discordsrv.Debug;
 import github.scarsz.discordsrv.DiscordSRV;
 import github.scarsz.discordsrv.api.events.DiscordPrivateMessageReceivedEvent;
@@ -53,6 +55,20 @@ public class DiscordAccountLinkListener extends ListenerAdapter {
             return;
 
         DiscordSRV.api.callEvent(new DiscordPrivateMessageReceivedEvent(event));
+
+        String ipVerificationReply = HeraldDiscordSRV.getInstance()
+            .handleIpVerificationMessage(
+                event.getMessage()
+                    .getContentRaw()
+                    .trim(),
+                event.getAuthor()
+                    .getId());
+        if (ipVerificationReply != null) {
+            event.getMessage()
+                .reply(ipVerificationReply)
+                .queue();
+            return;
+        }
 
         // don't link accounts if config option is disabled
         if (!DiscordSRV.config()
@@ -86,6 +102,15 @@ public class DiscordAccountLinkListener extends ListenerAdapter {
             .equals(linkChannel)) return;
 
         Message receivedMessage = event.getMessage();
+        if (HeraldDiscordSRV.getInstance()
+            .isIpVerificationMessage(
+                receivedMessage.getContentRaw()
+                    .trim())) {
+            receivedMessage.reply("Send Herald IP verification codes to this bot in a direct message.")
+                .queue();
+            return;
+        }
+
         String reply = DiscordSRV.getPlugin()
             .getAccountLinkManager()
             .process(
