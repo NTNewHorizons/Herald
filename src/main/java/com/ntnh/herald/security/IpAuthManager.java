@@ -60,6 +60,10 @@ public final class IpAuthManager implements Closeable {
     }
 
     public LoginResult checkLogin(String username, UUID uuid, InetAddress inetAddress) {
+        return checkLogin(username, uuid, inetAddress, true);
+    }
+
+    public LoginResult checkLogin(String username, UUID uuid, InetAddress inetAddress, boolean discordAvailable) {
         if (!settings.isEnabled()) return LoginResult.allowed();
 
         long now = clock.getAsLong();
@@ -106,6 +110,21 @@ public final class IpAuthManager implements Closeable {
         }
 
         String linkedDiscordId = resolveCurrentDiscordId(uuid);
+        if (!discordAvailable) {
+            auditLogger.failedIpCheck(
+                now,
+                username,
+                uuid,
+                address.getText(),
+                linkedDiscordId,
+                initialEnrollment,
+                "not_created_discord_unavailable");
+            return LoginResult.rejected(
+                "Herald authentication is temporarily unavailable. Please try again shortly.",
+                null,
+                false,
+                false);
+        }
 
         ChallengeSelection selection;
         try {
