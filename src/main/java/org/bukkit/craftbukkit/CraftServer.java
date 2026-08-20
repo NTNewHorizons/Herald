@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +52,7 @@ public class CraftServer implements Server {
     private final CraftServicesManager servicesManager = new CraftServicesManager();
     private final String version;
     private final Map<UUID, CraftPlayer> playerCache = new HashMap<>();
-    private final List<World> worlds = new ArrayList<>();
+    private final Map<WorldServer, CraftWorld> worldCache = new IdentityHashMap<>();
 
     public CraftServer() {
         this.console = MinecraftServer.getServer();
@@ -74,12 +75,6 @@ public class CraftServer implements Server {
         CraftPlayer cp = new CraftPlayer(ep);
         playerCache.put(uuid, cp);
         return cp;
-    }
-
-    public void addWorld(net.minecraft.world.World world) {
-        if (world instanceof net.minecraft.world.WorldServer) {
-            worlds.add(new CraftWorld((net.minecraft.world.WorldServer) world));
-        }
     }
 
     @Override
@@ -370,8 +365,28 @@ public class CraftServer implements Server {
     }
 
     @Override
-    public List<World> getWorlds() {
-        return worlds;
+    public synchronized List<World> getWorlds() {
+        MinecraftServer server = MinecraftServer.getServer();
+        if (server == null || server.worldServers == null) {
+            worldCache.clear();
+            return Collections.emptyList();
+        }
+
+        List<World> loadedWorlds = new ArrayList<>();
+        Set<WorldServer> liveWorlds = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (WorldServer world : server.worldServers) {
+            if (world == null) continue;
+            liveWorlds.add(world);
+            CraftWorld craftWorld = worldCache.get(world);
+            if (craftWorld == null) {
+                craftWorld = new CraftWorld(world);
+                worldCache.put(world, craftWorld);
+            }
+            loadedWorlds.add(craftWorld);
+        }
+        worldCache.keySet()
+            .retainAll(liveWorlds);
+        return Collections.unmodifiableList(loadedWorlds);
     }
 
     @Override
