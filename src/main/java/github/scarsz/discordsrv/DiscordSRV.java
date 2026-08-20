@@ -2691,7 +2691,7 @@ public class DiscordSRV extends JavaPlugin {
                 .get(0)
                 .getWorldFolder();
             if (folder != null) {
-                playerDataFolder = new File(folder.getAbsolutePath(), "/playerdata");
+                playerDataFolder = new File(folder, "playerdata");
             }
         }
     }
