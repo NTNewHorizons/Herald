@@ -242,6 +242,7 @@ public class HeraldDiscordSRV {
             if (!ipAuthResult.isAllowed()) return LoginDecision.reject(ipAuthResult.getKickMessage());
         }
 
+        loginPlayer.markAdmissionAccepted();
         return LoginDecision.allow();
     }
 

@@ -1,6 +1,7 @@
 package org.bukkit.craftbukkit.entity;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -30,11 +31,28 @@ public final class CraftLoginPlayer implements Player {
     private final GameProfile profile;
     private final InetSocketAddress address;
     private final CraftOfflinePlayer offlinePlayer;
+    private final List<Runnable> admissionAcceptedCallbacks = new ArrayList<>();
 
     public CraftLoginPlayer(GameProfile profile, InetSocketAddress address) {
         this.profile = profile;
         this.address = address;
         this.offlinePlayer = new CraftOfflinePlayer(profile.getName(), profile.getId());
+    }
+
+    /** Defers post-login work until every pre-admission authentication check has allowed this connection. */
+    public void runWhenAdmissionAccepted(Runnable callback) {
+        if (callback != null) admissionAcceptedCallbacks.add(callback);
+    }
+
+    public void markAdmissionAccepted() {
+        for (Runnable callback : admissionAcceptedCallbacks) {
+            try {
+                callback.run();
+            } catch (RuntimeException exception) {
+                com.ntnh.herald.Herald.LOG.error("Could not run deferred post-login work", exception);
+            }
+        }
+        admissionAcceptedCallbacks.clear();
     }
 
     @Override

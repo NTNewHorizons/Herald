@@ -28,6 +28,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.craftbukkit.entity.CraftLoginPlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -700,11 +701,17 @@ public class JdbcAccountLinkManager extends AbstractAccountLinkManager {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerLogin(PlayerLoginEvent event) {
-        SchedulerUtil.runTaskAsynchronously(DiscordSRV.getPlugin(), () -> {
+        if (event.getResult() != PlayerLoginEvent.Result.ALLOWED) return;
+        Runnable refresh = () -> SchedulerUtil.runTaskAsynchronously(DiscordSRV.getPlugin(), () -> {
             UUID uuid = event.getPlayer()
                 .getUniqueId();
             cache.putExpiring(uuid, getDiscordIdBypassCache(uuid), System.currentTimeMillis() + EXPIRY_TIME_ONLINE);
         });
+        if (event.getPlayer() instanceof CraftLoginPlayer) {
+            ((CraftLoginPlayer) event.getPlayer()).runWhenAdmissionAccepted(refresh);
+        } else {
+            refresh.run();
+        }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
