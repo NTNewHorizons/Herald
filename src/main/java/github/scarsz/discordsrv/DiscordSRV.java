@@ -90,6 +90,7 @@ import com.google.gson.GsonBuilder;
 import com.neovisionaries.ws.client.DualStackMode;
 import com.neovisionaries.ws.client.ProxySettings;
 import com.neovisionaries.ws.client.WebSocketFactory;
+import com.ntnh.herald.MinecraftServerCommandOutputForwarder;
 
 import alexh.weak.Dynamic;
 import github.scarsz.configuralize.DynamicConfig;
@@ -1237,6 +1238,7 @@ public class DiscordSRV extends JavaPlugin {
                     config.setLogLevels(
                         !configuredLevels.isEmpty() ? EnumSet.copyOf(configuredLevels)
                             : EnumSet.noneOf(LogLevel.class));
+                    config.ignoreLoggerName(MinecraftServerCommandOutputForwarder.OUTPUT_LOGGER_NAME);
                     config.mapLoggerName("net.minecraft.server.MinecraftServer", "Server");
                     config.mapLoggerNameFriendly("net.minecraft.server", s -> "Server/" + s);
                     config.mapLoggerNameFriendly("net.minecraft", s -> "Minecraft/" + s);
