@@ -208,6 +208,7 @@ public class ApiManager extends ListenerAdapter {
         runningCommandData.addAll(conflictResolvedCommands.values());
 
         int cancelledGuilds = 0;
+        int untouchedGuilds = 0;
         Set<RestAction<List<Command>>> guildCommandUpdateActions = new HashSet<>();
         Set<CommandRegistrationError> errors = Collections.synchronizedSet(new HashSet<>());
         for (Guild guild : DiscordSRV.getPlugin()
@@ -222,24 +223,34 @@ public class ApiManager extends ListenerAdapter {
                 .callEvent(new GuildSlashCommandUpdateEvent(guild, commandSet));
             if (event.isCancelled()) {
                 cancelledGuilds++;
+            } else if (commandSet.isEmpty()) {
+                // updateCommands() replaces the bot's complete guild command list. Calling it without any
+                // commands therefore deletes slash commands registered by other services using the same bot.
+                untouchedGuilds++;
             } else {
-                guildCommandUpdateActions.add(
-                    guild.updateCommands()
-                        .addCommands(commandSet)
-                        .onErrorMap(throwable -> {
-                            errors.add(new CommandRegistrationError(guild, throwable));
-                            return null;
-                        }));
+                List<RestAction<Command>> commandUpdateActions = commandSet.stream()
+                    .map(
+                        command -> guild.upsertCommand(command)
+                            .onErrorMap(throwable -> {
+                                errors.add(new CommandRegistrationError(guild, throwable));
+                                return null;
+                            }))
+                    .collect(Collectors.toList());
+                guildCommandUpdateActions.add(RestAction.allOf(commandUpdateActions));
             }
         }
 
         int finalCancelledGuilds = cancelledGuilds;
+        int finalUntouchedGuilds = untouchedGuilds;
         int finalConflictingCommands = conflictingCommands;
         RestAction.allOf(guildCommandUpdateActions)
             .queue(all -> {
                 int successful = all.stream()
                     .filter(Objects::nonNull)
-                    .mapToInt(List::size)
+                    .mapToInt(
+                        results -> (int) results.stream()
+                            .filter(Objects::nonNull)
+                            .count())
                     .sum();
                 long pluginCount = conflictResolvedCommands.values()
                     .stream()
@@ -247,7 +258,9 @@ public class ApiManager extends ListenerAdapter {
                     .distinct()
                     .count();
                 long registeredGuilds = all.stream()
-                    .filter(Objects::nonNull)
+                    .filter(
+                        results -> results != null && results.stream()
+                            .anyMatch(Objects::nonNull))
                     .count();
                 int totalGuilds = DiscordSRV.getPlugin()
                     .getJda()
@@ -269,12 +282,13 @@ public class ApiManager extends ListenerAdapter {
                             + " cancelled)");
                 } else {
                     DiscordSRV.info(
-                        "Cleared all pre-existing slash commands in " + registeredGuilds
-                            + "/"
-                            + totalGuilds
-                            + " guilds ("
+                        "No slash commands were registered; all pre-existing slash commands were left untouched ("
+                            + finalUntouchedGuilds
+                            + " guilds had no Herald commands, "
                             + finalCancelledGuilds
-                            + " cancelled)");
+                            + " cancelled) out of "
+                            + totalGuilds
+                            + " guilds");
                 }
 
                 if (errors.isEmpty()) return;
