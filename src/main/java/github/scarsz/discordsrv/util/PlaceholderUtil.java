@@ -17,6 +17,7 @@
 package github.scarsz.discordsrv.util;
 
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -390,6 +391,12 @@ public class PlaceholderUtil {
                         .getStartTime())));
         input = replaceIfPresent(
             input,
+            "%uptimeformatted%",
+            () -> formatUptime(
+                System.currentTimeMillis() - DiscordSRV.getPlugin()
+                    .getStartTime()));
+        input = replaceIfPresent(
+            input,
             "%uptimedays%",
             () -> Long.toString(
                 TimeUnit.MILLISECONDS.toDays(
@@ -432,6 +439,15 @@ public class PlaceholderUtil {
         input = replaceIfPresent(input, "%tps%", Lag::getTPSString);
 
         return input;
+    }
+
+    private static String formatUptime(long elapsedMilliseconds) {
+        long totalMinutes = TimeUnit.MILLISECONDS.toMinutes(elapsedMilliseconds);
+        long hours = totalMinutes / 60;
+        long minutes = totalMinutes % 60;
+
+        return hours > 0 ? String.format(Locale.ROOT, "%dh%02dm", hours, minutes)
+            : String.format(Locale.ROOT, "%dm", minutes);
     }
 
     private static String replaceIfPresent(String input, String placeholder, Supplier<?> value) {
