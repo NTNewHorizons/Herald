@@ -240,6 +240,7 @@ ChannelTopicUpdaterRateInMinutes: 10
 #     %totalplayers%:  total number of players to ever join the main world
 #     %uptimemins%:    number of minutes since DiscordSRV has started
 #     %uptimehours%:   number of hours since DiscordSRV has started
+#     %uptimeformatted%: compact uptime such as 3h27m
 #     %motd%:          motd of the server
 #     %serverversion%: server version such as Spigot-1.9
 #     %freememory%:    free memory of the JVM in MB
