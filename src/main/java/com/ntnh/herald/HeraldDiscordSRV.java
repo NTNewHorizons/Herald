@@ -515,7 +515,6 @@ public class HeraldDiscordSRV {
         if (discordSRV == null) return;
         if (craftServer != null) {
             craftServer.addWorld(event.world);
-            DiscordSRV.updatePlayerDataFolder();
         }
     }
 
