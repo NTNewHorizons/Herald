@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -48,6 +49,7 @@ import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.requests.RestAction;
 import net.dv8tion.jda.api.requests.restaction.MessageAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
+import net.dv8tion.jda.api.utils.SessionControllerAdapter;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
@@ -141,8 +143,8 @@ import okhttp3.internal.tls.OkHostnameVerifier;
 public class DiscordSRV extends JavaPlugin {
 
     public static final ApiManager api = new ApiManager();
-    public static boolean isReady = false;
-    public static boolean shuttingDown = false;
+    public static volatile boolean isReady = false;
+    public static volatile boolean shuttingDown = false;
     public static boolean updateChecked = false;
     public static boolean invalidBotToken = false;
     private static boolean offlineUuidAvatarUrlNagged = false;
@@ -234,8 +236,23 @@ public class DiscordSRV extends JavaPlugin {
 
     // JDA & JDA related
     @Getter
-    private JDA jda = null;
+    private volatile JDA jda = null;
     private ExecutorService callbackThreadPool;
+    private static final long CONNECTION_TIMEOUT_SECONDS = 120;
+    private static final long[] CONNECTION_RETRY_DELAYS_SECONDS = { 30, 120, 300 };
+    private final Object connectionLifecycleLock = new Object();
+    private final Object connectionTransitionLock = new Object();
+    private final AtomicLong connectionGeneration = new AtomicLong();
+    private final ScheduledExecutorService connectionLifecycleExecutor = Executors.newScheduledThreadPool(
+        2,
+        new ThreadFactoryBuilder().setNameFormat("DiscordSRV - Connection Lifecycle %d")
+            .setDaemon(true)
+            .build());
+    private final List<Runnable> afterConnectionReady = new CopyOnWriteArrayList<>();
+    private volatile DiscordConnectionAttempt connectionAttempt;
+    private volatile ScheduledFuture<?> scheduledConnectionRetry;
+    private volatile boolean initializationCompleted;
+    private volatile int consecutiveConnectionFailures;
     @Getter
     private ChannelLoggingHandler consoleAppender;
     private JdaFilter jdaFilter;
@@ -614,27 +631,279 @@ public class DiscordSRV extends JavaPlugin {
                 .getName());
 
         version = getDescription().getVersion();
-        Thread initThread = new Thread(() -> {
-            boolean completedNormally = false;
-            try {
-                init();
-                completedNormally = true;
-            } finally {
-                com.ntnh.herald.HeraldDiscordSRV.getInstance()
-                    .onDiscordInitializationFinished(completedNormally);
+        shuttingDown = false;
+        isReady = false;
+        requestConnectionAttempt("initial startup", false);
+    }
+
+    public boolean isDiscordConnectionUsable() {
+        JDA currentJda = jda;
+        return isReady && currentJda != null && currentJda.getStatus() == JDA.Status.CONNECTED;
+    }
+
+    /** Requests a fresh connection without ever doing network work on the caller (normally the server thread). */
+    public void requestDiscordReconnect(String reason, Runnable whenReady) {
+        if (shuttingDown) return;
+        if (whenReady != null) afterConnectionReady.add(whenReady);
+        info("Discord reconnect requested: " + reason);
+        connectionLifecycleExecutor.execute(() -> requestConnectionAttempt(reason, true));
+    }
+
+    private void requestConnectionAttempt(String reason, boolean replaceCurrent) {
+        synchronized (connectionTransitionLock) {
+            requestConnectionAttemptLocked(reason, replaceCurrent);
+        }
+    }
+
+    private void requestConnectionAttemptLocked(String reason, boolean replaceCurrent) {
+        DiscordConnectionAttempt previous = null;
+        DiscordConnectionAttempt next;
+        synchronized (connectionLifecycleLock) {
+            if (shuttingDown) return;
+            if (!replaceCurrent && connectionAttempt != null && !connectionAttempt.retired) return;
+
+            if (scheduledConnectionRetry != null) {
+                scheduledConnectionRetry.cancel(false);
+                scheduledConnectionRetry = null;
             }
-        }, "DiscordSRV - Initialization");
-        initThread.setUncaughtExceptionHandler((t, e) -> {
-            // make DiscordSRV go red in /plugins
-            disablePlugin();
-            error(e);
-            getLogger().severe(
-                "DiscordSRV failed to load properly: " + e.getMessage()
-                    + ". See "
-                    + github.scarsz.discordsrv.util.DebugUtil.run("DiscordSRV")
-                    + " for more information. Can't figure it out? Go to https://discordsrv.com/discord for help");
+            if (connectionAttempt != null) {
+                previous = connectionAttempt;
+                previous.markRetired();
+                isReady = false;
+                if (jda == previous.internalJda) jda = null;
+            }
+
+            long generation = connectionGeneration.incrementAndGet();
+            next = new DiscordConnectionAttempt(generation, reason);
+            connectionAttempt = next;
+            next.thread = new Thread(
+                () -> runConnectionAttempt(next),
+                initializationCompleted ? "DiscordSRV - Reconnect " + generation : "DiscordSRV - Initialization");
+            next.thread.setDaemon(true);
+            next.timeout = connectionLifecycleExecutor
+                .schedule(() -> timeOutConnectionAttempt(next), CONNECTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        if (previous != null) {
+            info("Retiring stale Discord connection attempt " + previous.generation);
+            com.ntnh.herald.HeraldDiscordSRV.getInstance()
+                .onDiscordConnectionUnavailable("Discord connection is restarting");
+            previous.closeResources();
+        }
+        info("Discord connection attempt " + next.generation + " started (" + reason + ")");
+        synchronized (connectionLifecycleLock) {
+            if (!isCurrentConnectionAttempt(next)) {
+                next.closeResources();
+                return;
+            }
+            next.thread.start();
+        }
+    }
+
+    private void runConnectionAttempt(DiscordConnectionAttempt attempt) {
+        try {
+            init(attempt);
+        } catch (Throwable throwable) {
+            error("Discord connection attempt " + attempt.generation + " terminated unexpectedly", throwable);
+            failConnectionAttempt(attempt, "unexpected initialization error", true);
+        } finally {
+            attempt.thread = null;
+        }
+    }
+
+    private void timeOutConnectionAttempt(DiscordConnectionAttempt attempt) {
+        if (!isCurrentConnectionAttempt(attempt) || attempt.connectionReady) return;
+        warning(
+            "Discord connection attempt " + attempt.generation
+                + " exceeded "
+                + CONNECTION_TIMEOUT_SECONDS
+                + " seconds; retiring it");
+        failConnectionAttempt(attempt, "initialization timed out", true);
+    }
+
+    private void failConnectionAttempt(DiscordConnectionAttempt attempt, String reason, boolean retryable) {
+        synchronized (connectionTransitionLock) {
+            failConnectionAttemptLocked(attempt, reason, retryable);
+        }
+    }
+
+    private void failConnectionAttemptLocked(DiscordConnectionAttempt attempt, String reason, boolean retryable) {
+        long retryDelay = -1;
+        synchronized (connectionLifecycleLock) {
+            if (connectionAttempt != attempt || attempt.retired) return;
+            attempt.markRetired();
+            connectionAttempt = null;
+            isReady = false;
+            if (jda == attempt.internalJda) jda = null;
+            if (retryable && !shuttingDown) {
+                int retryIndex = Math.min(consecutiveConnectionFailures++, CONNECTION_RETRY_DELAYS_SECONDS.length - 1);
+                retryDelay = CONNECTION_RETRY_DELAYS_SECONDS[retryIndex];
+                long selectedDelay = retryDelay;
+                scheduledConnectionRetry = connectionLifecycleExecutor.schedule(
+                    () -> requestConnectionAttempt("automatic retry after " + reason, false),
+                    selectedDelay,
+                    TimeUnit.SECONDS);
+            }
+        }
+
+        attempt.closeResources();
+        synchronized (connectionLifecycleLock) {
+            if (connectionGeneration.get() == attempt.generation && !isReady) {
+                com.ntnh.herald.HeraldDiscordSRV.getInstance()
+                    .onDiscordConnectionUnavailable("Discord connection attempt failed: " + reason);
+            }
+        }
+        if (retryDelay >= 0) {
+            warning(
+                "Discord connection attempt " + attempt.generation
+                    + " failed ("
+                    + reason
+                    + "); retry scheduled in "
+                    + retryDelay
+                    + " seconds");
+        } else {
+            error("Discord connection attempt " + attempt.generation + " failed: " + reason);
+        }
+    }
+
+    private boolean isCurrentConnectionAttempt(DiscordConnectionAttempt attempt) {
+        return connectionAttempt == attempt && !attempt.retired && !shuttingDown;
+    }
+
+    private boolean publishConnectedJda(DiscordConnectionAttempt attempt, JDA connectedJda) {
+        synchronized (connectionLifecycleLock) {
+            if (!isCurrentConnectionAttempt(attempt)) return false;
+            attempt.internalJda = connectedJda;
+            attempt.connectionReady = true;
+            if (attempt.timeout != null) attempt.timeout.cancel(false);
+            jda = connectedJda;
+            callbackThreadPool = attempt.callbackPool;
+            consecutiveConnectionFailures = 0;
+            return true;
+        }
+    }
+
+    private void finishConnectionAttempt(DiscordConnectionAttempt attempt) {
+        boolean reconnect;
+        JDA connectedJda;
+        synchronized (connectionLifecycleLock) {
+            if (!isCurrentConnectionAttempt(attempt)) return;
+            reconnect = initializationCompleted;
+            connectedJda = jda;
+            isReady = true;
+            initializationCompleted = true;
+        }
+        info(
+            (reconnect ? "Discord reconnect succeeded as " : "DiscordSRV connected and ready as ")
+                + connectedJda.getSelfUser()
+                    .getName()
+                + " (generation "
+                + attempt.generation
+                + ")");
+        if (!isCurrentConnectionAttempt(attempt)) return;
+        api.callEvent(new DiscordReadyEvent());
+        if (!isCurrentConnectionAttempt(attempt)) return;
+        com.ntnh.herald.HeraldDiscordSRV.getInstance()
+            .onDiscordConnectionReady();
+        if (!isCurrentConnectionAttempt(attempt)) return;
+        List<Runnable> callbacks = new ArrayList<>(afterConnectionReady);
+        afterConnectionReady.removeAll(callbacks);
+        callbacks.forEach(callback -> {
+            try {
+                callback.run();
+            } catch (Throwable throwable) {
+                error("A post-reconnect task failed", throwable);
+            }
         });
-        initThread.start();
+    }
+
+    private final class DiscordConnectionAttempt {
+
+        private final long generation;
+        private final String reason;
+        private volatile Thread thread;
+        private volatile ScheduledFuture<?> timeout;
+        private volatile JDA internalJda;
+        private volatile OkHttpClient httpClient;
+        private volatile ConnectionPool connectionPool;
+        private volatile ExecutorService callbackPool;
+        private volatile ScheduledExecutorService gatewayPool;
+        private volatile ScheduledExecutorService rateLimitPool;
+        private volatile boolean connectionReady;
+        private volatile boolean retired;
+
+        private DiscordConnectionAttempt(long generation, String reason) {
+            this.generation = generation;
+            this.reason = reason;
+        }
+
+        private synchronized void captureJda(JDA createdJda) {
+            if (retired) {
+                createdJda.shutdownNow();
+            } else {
+                internalJda = createdJda;
+            }
+        }
+
+        private synchronized void captureConnectionPool(ConnectionPool createdPool) {
+            connectionPool = createdPool;
+            if (retired) createdPool.evictAll();
+        }
+
+        private synchronized void captureHttpClient(OkHttpClient createdClient) {
+            httpClient = createdClient;
+            if (retired) {
+                createdClient.dispatcher()
+                    .cancelAll();
+                createdClient.dispatcher()
+                    .executorService()
+                    .shutdownNow();
+            }
+        }
+
+        private synchronized void captureCallbackPool(ExecutorService createdPool) {
+            callbackPool = createdPool;
+            if (retired) createdPool.shutdownNow();
+        }
+
+        private synchronized void captureGatewayPool(ScheduledExecutorService createdPool) {
+            gatewayPool = createdPool;
+            if (retired) createdPool.shutdownNow();
+        }
+
+        private synchronized void captureRateLimitPool(ScheduledExecutorService createdPool) {
+            rateLimitPool = createdPool;
+            if (retired) createdPool.shutdownNow();
+        }
+
+        private synchronized void markRetired() {
+            retired = true;
+            if (timeout != null) timeout.cancel(false);
+        }
+
+        private synchronized void closeResources() {
+            retired = true;
+            if (timeout != null) timeout.cancel(false);
+            if (httpClient != null) {
+                httpClient.dispatcher()
+                    .cancelAll();
+            }
+            if (connectionPool != null) connectionPool.evictAll();
+            if (internalJda != null) {
+                try {
+                    internalJda.shutdownNow();
+                } catch (Throwable throwable) {
+                    error("Failed to shut down JDA for retired connection attempt " + generation, throwable);
+                }
+            }
+            if (gatewayPool != null) gatewayPool.shutdownNow();
+            if (rateLimitPool != null) rateLimitPool.shutdownNow();
+            if (callbackPool != null) callbackPool.shutdownNow();
+            if (httpClient != null) httpClient.dispatcher()
+                .executorService()
+                .shutdownNow();
+            if (thread != null && thread != Thread.currentThread()) thread.interrupt();
+        }
     }
 
     public void disablePlugin() {
@@ -656,7 +925,9 @@ public class DiscordSRV extends JavaPlugin {
         }
     }
 
-    public void init() {
+    private void init(DiscordConnectionAttempt attempt) {
+        if (!isCurrentConnectionAttempt(attempt)) return;
+        boolean reconnecting = initializationCompleted;
         if (Bukkit.getPluginManager()
             .isPluginEnabled("PlugMan")) {
             Plugin plugMan = Bukkit.getPluginManager()
@@ -690,7 +961,7 @@ public class DiscordSRV extends JavaPlugin {
             error(e);
         }
 
-        requireLinkModule = new RequireLinkModule();
+        if (!reconnecting) requireLinkModule = new RequireLinkModule();
 
         // start the update checker (will skip if disabled)
         if (!isUpdateCheckDisabled()) {
@@ -698,25 +969,17 @@ public class DiscordSRV extends JavaPlugin {
                 final ThreadFactory gatewayThreadFactory = new ThreadFactoryBuilder()
                     .setNameFormat("DiscordSRV - Update Checker")
                     .build();
-                updateChecker = Executors.newScheduledThreadPool(1);
+                updateChecker = Executors.newScheduledThreadPool(1, gatewayThreadFactory);
+                updateChecker.schedule(() -> {
+                    DiscordSRV.updateIsAvailable = UpdateUtil.checkForUpdates();
+                    DiscordSRV.updateChecked = true;
+                }, 0, TimeUnit.SECONDS);
+                updateChecker.scheduleAtFixedRate(
+                    () -> DiscordSRV.updateIsAvailable = UpdateUtil.checkForUpdates(false),
+                    6,
+                    6,
+                    TimeUnit.HOURS);
             }
-            updateChecker.schedule(() -> {
-                DiscordSRV.updateIsAvailable = UpdateUtil.checkForUpdates();
-                DiscordSRV.updateChecked = true;
-            }, 0, TimeUnit.SECONDS);
-            updateChecker.scheduleAtFixedRate(
-                () -> DiscordSRV.updateIsAvailable = UpdateUtil.checkForUpdates(false),
-                6,
-                6,
-                TimeUnit.HOURS);
-        }
-
-        // shutdown previously existing jda if plugin gets reloaded
-        if (jda != null) try {
-            jda.shutdown();
-            jda = null;
-        } catch (Exception e) {
-            error(e);
         }
 
         reloadAllowedMentions();
@@ -913,10 +1176,11 @@ public class DiscordSRV extends JavaPlugin {
                 5,
                 TimeUnit.SECONDS,
                 new SynchronousQueue<>(),
-                Util.threadFactory("OkHttp Dispatcher", false)));
+                Util.threadFactory("OkHttp Dispatcher", true)));
         dispatcher.setMaxRequests(20);
         dispatcher.setMaxRequestsPerHost(20); // most requests are to discord.com
         ConnectionPool connectionPool = new ConnectionPool(5, 10, TimeUnit.SECONDS);
+        attempt.captureConnectionPool(connectionPool);
 
         String proxyHost = config.getString("ProxyHost");
         int proxyPort = config.getInt("ProxyPort");
@@ -969,6 +1233,7 @@ public class DiscordSRV extends JavaPlugin {
         }
 
         OkHttpClient httpClient = httpClientBuilder.build();
+        attempt.captureHttpClient(httpClient);
 
         // set custom RestAction failure handler
         Consumer<? super Throwable> defaultFailure = RestAction.getDefaultFailure();
@@ -1054,12 +1319,11 @@ public class DiscordSRV extends JavaPlugin {
         }
 
         if (StringUtils.isBlank(token) || "BOTTOKEN".equalsIgnoreCase(token)) {
-            disablePlugin();
             error("No bot token has been set in the config; a bot token is required to connect to Discord.");
             invalidBotToken = true;
+            failConnectionAttempt(attempt, "no bot token is configured", false);
             return;
         } else if (token.length() < 59) {
-            disablePlugin();
             error(
                 "An invalid length bot token (" + token.length()
                     + ") has been set in the config; a valid bot token is required to connect to Discord."
@@ -1067,13 +1331,15 @@ public class DiscordSRV extends JavaPlugin {
                         ? " Did you copy the \"Client Secret\" instead of the \"Bot Token\" into the config?"
                         : ""));
             invalidBotToken = true;
+            failConnectionAttempt(attempt, "the configured bot token has an invalid length", false);
             return;
         } else {
             // remove invalid characters
             token = token.replaceAll("[^\\w\\d-_.]", "");
+            invalidBotToken = false;
         }
 
-        callbackThreadPool = new ForkJoinPool(
+        ExecutorService attemptCallbackThreadPool = new ForkJoinPool(
             Runtime.getRuntime()
                 .availableProcessors(),
             pool -> {
@@ -1083,16 +1349,21 @@ public class DiscordSRV extends JavaPlugin {
             },
             null,
             true);
+        attempt.captureCallbackPool(attemptCallbackThreadPool);
 
         final ThreadFactory gatewayThreadFactory = new ThreadFactoryBuilder().setNameFormat("DiscordSRV - JDA Gateway")
+            .setDaemon(true)
             .build();
         final ScheduledExecutorService gatewayThreadPool = Executors
             .newSingleThreadScheduledExecutor(gatewayThreadFactory);
+        attempt.captureGatewayPool(gatewayThreadPool);
 
         final ThreadFactory rateLimitThreadFactory = new ThreadFactoryBuilder()
             .setNameFormat("DiscordSRV - JDA Rate Limit")
+            .setDaemon(true)
             .build();
         final ScheduledExecutorService rateLimitThreadPool = new ScheduledThreadPoolExecutor(5, rateLimitThreadFactory);
+        attempt.captureRateLimitPool(rateLimitThreadPool);
 
         // log in to discord
         if (config.getBooleanElse("EnablePresenceInformation", false)) {
@@ -1102,7 +1373,7 @@ public class DiscordSRV extends JavaPlugin {
         }
         try {
             // see ApiManager for our default intents & cache flags
-            jda = JDABuilder.create(api.getIntents())
+            JDA connectedJda = JDABuilder.create(api.getIntents())
                 // we disable anything that isn't enabled (everything is enabled by default)
                 .disableCache(
                     Arrays.stream(CacheFlag.values())
@@ -1111,11 +1382,20 @@ public class DiscordSRV extends JavaPlugin {
                                 .contains(cacheFlag))
                         .collect(Collectors.toList()))
                 .setMemberCachePolicy(MemberCachePolicy.ALL)
-                .setCallbackPool(callbackThreadPool, false)
+                .setCallbackPool(attemptCallbackThreadPool, false)
                 .setGatewayPool(gatewayThreadPool, true)
                 .setRateLimitPool(rateLimitThreadPool, true)
                 .setWebsocketFactory(websocketFactory)
                 .setHttpClient(httpClient)
+                .setSessionController(new SessionControllerAdapter() {
+
+                    @NotNull
+                    @Override
+                    public String getGateway(@NotNull JDA api) {
+                        attempt.captureJda(api);
+                        return super.getGateway(api);
+                    }
+                })
                 .setAutoReconnect(true)
                 .setBulkDeleteSplittingEnabled(false)
                 .setEnableShutdownHook(false)
@@ -1129,9 +1409,16 @@ public class DiscordSRV extends JavaPlugin {
                 .addEventListeners(groupSynchronizationManager)
                 .setContextEnabled(false)
                 .build();
-            jda.awaitReady(); // let JDA be assigned as soon as we can, but wait until it's ready
+            info("JDABuilder.build() returned for Discord connection attempt " + attempt.generation);
+            attempt.captureJda(connectedJda);
+            if (!isCurrentConnectionAttempt(attempt)) {
+                info("Discarding stale JDA result from connection attempt " + attempt.generation);
+                attempt.closeResources();
+                return;
+            }
+            connectedJda.awaitReady();
 
-            for (Guild guild : jda.getGuilds()) {
+            for (Guild guild : connectedJda.getGuilds()) {
                 guild.retrieveOwner(true)
                     .queue();
                 guild.loadMembers()
@@ -1139,24 +1426,46 @@ public class DiscordSRV extends JavaPlugin {
                     .onError(throwable -> DiscordSRV.error("Failed to retrieve members of guild " + guild, throwable))
                     .get(); // block DiscordSRV startup until members are loaded
             }
+            if (!publishConnectedJda(attempt, connectedJda)) {
+                info("Discarding stale ready JDA from connection attempt " + attempt.generation);
+                attempt.closeResources();
+                return;
+            }
+            info("JDA became ready for Discord connection attempt " + attempt.generation);
         } catch (LoginException e) {
-            disablePlugin();
-            if (e.getMessage()
-                .toLowerCase()
+            String loginFailure = StringUtils.defaultString(
+                e.getMessage(),
+                e.getClass()
+                    .getSimpleName());
+            if (loginFailure.toLowerCase()
                 .contains("the provided token is invalid")) {
                 invalidBotToken = true;
                 DiscordDisconnectListener.printDisconnectMessage(true, "The bot token is invalid");
+                failConnectionAttempt(attempt, "the bot token is invalid", false);
             } else {
-                DiscordDisconnectListener.printDisconnectMessage(true, e.getMessage());
+                DiscordDisconnectListener.printDisconnectMessage(true, loginFailure);
+                failConnectionAttempt(attempt, loginFailure, true);
             }
             return;
         } catch (Exception e) {
-            if (e instanceof IllegalStateException && e.getMessage()
-                .equals("Was shutdown trying to await status")) {
+            if (e instanceof IllegalStateException && "Was shutdown trying to await status".equals(e.getMessage())) {
                 // already logged by JDA
+                failConnectionAttempt(attempt, "JDA was shut down while connecting", !shuttingDown);
                 return;
             }
             DiscordSRV.error("An unknown error occurred building JDA...", e);
+            failConnectionAttempt(
+                attempt,
+                e.getClass()
+                    .getSimpleName() + ": "
+                    + e.getMessage(),
+                true);
+            return;
+        }
+
+        if (reconnecting) {
+            if (alertListener != null) jda.addEventListener(alertListener);
+            finishConnectionAttempt(attempt);
             return;
         }
 
@@ -1572,12 +1881,10 @@ public class DiscordSRV extends JavaPlugin {
             .registerEvents(alertListener, this);
 
         // set ready status
-        if (jda.getStatus() == JDA.Status.CONNECTED) {
-            isReady = true;
-            DiscordSRV.info(
-                "DiscordSRV connected and ready as " + jda.getSelfUser()
-                    .getName());
-            api.callEvent(new DiscordReadyEvent());
+        if (jda.getStatus() == JDA.Status.CONNECTED && isCurrentConnectionAttempt(attempt)) {
+            finishConnectionAttempt(attempt);
+        } else if (isCurrentConnectionAttempt(attempt)) {
+            failConnectionAttempt(attempt, "JDA left the connected state during initialization", true);
         }
     }
 
@@ -1600,6 +1907,16 @@ public class DiscordSRV extends JavaPlugin {
     @Override
     public void onDisable() {
         shuttingDown = true;
+        DiscordConnectionAttempt stoppingAttempt;
+        synchronized (connectionLifecycleLock) {
+            stoppingAttempt = connectionAttempt;
+            connectionAttempt = null;
+            connectionGeneration.incrementAndGet();
+            if (stoppingAttempt != null) stoppingAttempt.markRetired();
+            if (scheduledConnectionRetry != null) scheduledConnectionRetry.cancel(false);
+            scheduledConnectionRetry = null;
+        }
+        connectionLifecycleExecutor.shutdownNow();
 
         final long shutdownStartTime = System.currentTimeMillis();
 
@@ -1776,6 +2093,8 @@ public class DiscordSRV extends JavaPlugin {
                         getLogger().warning("JDA took too long to shut down, skipping");
                     }
                 }
+
+                if (stoppingAttempt != null) stoppingAttempt.closeResources();
 
                 if (callbackThreadPool != null) callbackThreadPool.shutdownNow();
 
