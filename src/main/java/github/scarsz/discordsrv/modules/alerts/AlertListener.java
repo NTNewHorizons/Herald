@@ -79,6 +79,7 @@ public class AlertListener implements Listener, EventListener {
 
     private final Map<String, String> validClassNameCache = new ExpiringDualHashBidiMap<>(TimeUnit.MINUTES.toMillis(1));
     private final ClassValue<String> eventNameCache = new ClassValue<>() {
+
         @Override
         protected String computeValue(Class<?> type) {
             return type.getSimpleName();
@@ -319,7 +320,7 @@ public class AlertListener implements Listener, EventListener {
 
     private void runAlertsForEvent(Object event) {
         boolean command = event instanceof PlayerCommandPreprocessEvent || event instanceof ServerCommandEvent;
-        
+
         if (activeTriggers.isEmpty() && !(command && anyCommandTrigger)) return;
 
         String eventClassName = getEventClassName(event);
