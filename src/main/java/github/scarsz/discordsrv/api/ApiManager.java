@@ -23,6 +23,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
 
+import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.events.interaction.SlashCommandEvent;
 import net.dv8tion.jda.api.exceptions.ErrorResponseException;
@@ -178,6 +179,13 @@ public class ApiManager extends ListenerAdapter {
     }
 
     public void updateSlashCommands() {
+        JDA jda = DiscordSRV.getPlugin()
+            .getJda();
+        if (jda == null || jda.getStatus() != JDA.Status.CONNECTED) {
+            DiscordSRV.warning("Skipping slash command update because Discord JDA is unavailable");
+            return;
+        }
+
         Set<PluginSlashCommand> commands = new HashSet<>();
         for (Plugin plugin : Bukkit.getPluginManager()
             .getPlugins()) {
@@ -211,9 +219,7 @@ public class ApiManager extends ListenerAdapter {
         int untouchedGuilds = 0;
         Set<RestAction<List<Command>>> guildCommandUpdateActions = new HashSet<>();
         Set<CommandRegistrationError> errors = Collections.synchronizedSet(new HashSet<>());
-        for (Guild guild : DiscordSRV.getPlugin()
-            .getJda()
-            .getGuilds()) {
+        for (Guild guild : jda.getGuilds()) {
             Set<CommandData> commandSet = conflictResolvedCommands.values()
                 .stream()
                 .filter(command -> command.isApplicable(guild))
@@ -262,9 +268,7 @@ public class ApiManager extends ListenerAdapter {
                         results -> results != null && results.stream()
                             .anyMatch(Objects::nonNull))
                     .count();
-                int totalGuilds = DiscordSRV.getPlugin()
-                    .getJda()
-                    .getGuilds()
+                int totalGuilds = jda.getGuilds()
                     .size();
                 if (successful > 0) {
                     DiscordSRV.info(

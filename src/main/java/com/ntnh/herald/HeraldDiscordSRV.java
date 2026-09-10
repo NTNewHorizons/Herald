@@ -221,6 +221,8 @@ public class HeraldDiscordSRV {
             return AuthenticationReadiness.State.FAILED;
         }
         if (state == AuthenticationReadiness.State.LOADING) return state;
+        if (state == AuthenticationReadiness.State.UNAVAILABLE
+            && (discordSRV == null || !DiscordSRV.isReady || discordSRV.getJda() == null)) return state;
 
         String missingComponent = describeMissingAuthenticationComponent();
         if (missingComponent != null) {
@@ -230,17 +232,15 @@ public class HeraldDiscordSRV {
 
         JDA jda = discordSRV.getJda();
         if (jda == null) {
-            authenticationReadiness.markFailed("DiscordSRV JDA is unavailable");
-            return AuthenticationReadiness.State.FAILED;
+            authenticationReadiness.markUnavailable("DiscordSRV JDA is unavailable");
+            return AuthenticationReadiness.State.UNAVAILABLE;
         }
 
         String jdaStatus = jda.getStatus()
             .name();
         boolean connected = "CONNECTED".equals(jdaStatus);
-        boolean permanentFailure = isPermanentJdaFailure(jdaStatus);
-        String reason = permanentFailure ? "Discord JDA entered terminal state " + jdaStatus
-            : "Discord connection state is " + jdaStatus;
-        return authenticationReadiness.refreshAvailability(true, connected, permanentFailure, reason);
+        String reason = "Discord connection state is " + jdaStatus;
+        return authenticationReadiness.refreshAvailability(true, connected, false, reason);
     }
 
     /** Returns a fail-closed message when a specific authentication check requires live Discord. */
@@ -309,12 +309,11 @@ public class HeraldDiscordSRV {
         return LoginDecision.allow();
     }
 
-    /** Called by DiscordSRV's initialization thread even when initialization returns early or throws. */
-    public void onDiscordInitializationFinished(boolean completedNormally) {
-        if (!completedNormally) {
-            authenticationReadiness.markFailed("DiscordSRV initialization terminated with an exception");
-            return;
-        }
+    public void onDiscordConnectionUnavailable(String reason) {
+        authenticationReadiness.markUnavailable(reason);
+    }
+
+    public void onDiscordConnectionReady() {
         markAuthenticationReadyOrFailed();
     }
 
@@ -325,17 +324,20 @@ public class HeraldDiscordSRV {
             return;
         }
 
+        if (!DiscordSRV.isReady) {
+            authenticationReadiness.markUnavailable("DiscordSRV is reconnecting");
+            return;
+        }
+
         JDA jda = discordSRV.getJda();
         if (jda == null) {
-            authenticationReadiness.markFailed("DiscordSRV initialization completed without JDA");
+            authenticationReadiness.markUnavailable("DiscordSRV initialization completed without JDA");
             return;
         }
         String jdaStatus = jda.getStatus()
             .name();
         if ("CONNECTED".equals(jdaStatus)) {
             authenticationReadiness.markReady();
-        } else if (isPermanentJdaFailure(jdaStatus)) {
-            authenticationReadiness.markFailed("DiscordSRV initialization ended with JDA state " + jdaStatus);
         } else {
             authenticationReadiness.markUnavailable("Discord connection state is " + jdaStatus);
         }
@@ -345,16 +347,11 @@ public class HeraldDiscordSRV {
         DiscordSRV current = discordSRV;
         if (current == null) return "DiscordSRV is unavailable";
         if (!current.isEnabled()) return "DiscordSRV is disabled";
-        if (!DiscordSRV.isReady) return "DiscordSRV initialization completed without becoming ready";
         if (current.getAccountLinkManager() == null) return "DiscordSRV account linking is unavailable";
         if (HeraldConfig.ipAuthenticationEnabled && ipAuthManager == null) {
             return "Herald IP authentication is unavailable";
         }
         return null;
-    }
-
-    private static boolean isPermanentJdaFailure(String status) {
-        return "SHUTTING_DOWN".equals(status) || "SHUTDOWN".equals(status) || "FAILED_TO_LOGIN".equals(status);
     }
 
     public void serverStarted(FMLServerStartedEvent event) {

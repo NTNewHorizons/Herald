@@ -46,9 +46,22 @@ public class CommandReload {
             .reloadRoleAliases();
         DiscordSRV.getPlugin()
             .reloadAllowedMentions();
-        DiscordSRV.api.updateSlashCommands();
-        DiscordSRV.getPlugin()
-            .restartChannelUpdaters();
+        if (DiscordSRV.getPlugin()
+            .isDiscordConnectionUsable()) {
+            DiscordSRV.api.updateSlashCommands();
+            DiscordSRV.getPlugin()
+                .restartChannelUpdaters();
+        } else {
+            MessageUtil.sendMessage(
+                sender,
+                ChatColor.YELLOW + "Discord connection is unavailable; attempting to reconnect...");
+            DiscordSRV.getPlugin()
+                .requestDiscordReconnect("requested by /discord reload", () -> {
+                    DiscordSRV.api.updateSlashCommands();
+                    DiscordSRV.getPlugin()
+                        .restartChannelUpdaters();
+                });
+        }
         if (DiscordSRV.getPlugin()
             .getAlertListener() != null)
             DiscordSRV.getPlugin()

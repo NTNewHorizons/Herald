@@ -42,6 +42,17 @@ class AuthenticationReadinessTest {
     }
 
     @Test
+    void timedOutInitialConnectionCanRecoverToReady() {
+        AuthenticationReadiness readiness = readiness();
+
+        readiness.markUnavailable("Discord initialization timed out");
+        assertEquals(AuthenticationReadiness.State.UNAVAILABLE, readiness.getState());
+
+        readiness.markReady();
+        assertEquals(AuthenticationReadiness.State.READY, readiness.getState());
+    }
+
+    @Test
     void terminalDiscordFailureFailsClosed() {
         AuthenticationReadiness readiness = readiness();
         readiness.markReady();
