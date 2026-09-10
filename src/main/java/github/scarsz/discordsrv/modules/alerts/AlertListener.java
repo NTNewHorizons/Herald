@@ -78,6 +78,12 @@ public class AlertListener implements Listener, EventListener {
     private static final List<Class<?>> BLACKLISTED_CLASSES = new ArrayList<>();
 
     private final Map<String, String> validClassNameCache = new ExpiringDualHashBidiMap<>(TimeUnit.MINUTES.toMillis(1));
+    private final ClassValue<String> eventNameCache = new ClassValue<>() {
+        @Override
+        protected String computeValue(Class<?> type) {
+            return type.getSimpleName();
+        }
+    };
     private final Set<String> activeTriggers = new HashSet<>();
     private boolean anyCommandTrigger = false;
 
@@ -313,6 +319,8 @@ public class AlertListener implements Listener, EventListener {
 
     private void runAlertsForEvent(Object event) {
         boolean command = event instanceof PlayerCommandPreprocessEvent || event instanceof ServerCommandEvent;
+        
+        if (activeTriggers.isEmpty() && !(command && anyCommandTrigger)) return;
 
         String eventClassName = getEventClassName(event);
         boolean active = (command && anyCommandTrigger)
@@ -420,9 +428,7 @@ public class AlertListener implements Listener, EventListener {
     }
 
     private String getEventName(Object event) {
-        return event instanceof Event ? ((Event) event).getEventName()
-            : event.getClass()
-                .getSimpleName();
+        return event instanceof Event ? ((Event) event).getEventName() : eventNameCache.get(event.getClass());
     }
 
     private void process(Object event, Dynamic alert, Set<String> triggers, int alertIndex) {
