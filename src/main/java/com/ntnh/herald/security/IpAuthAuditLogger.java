@@ -71,6 +71,44 @@ public final class IpAuthAuditLogger implements Closeable {
                 + field("evicted_ip", evictedIp));
     }
 
+    public synchronized void verificationReceived(long timestamp, String discordId, String code) {
+        write(timestamp, "verification_received", field("discord_id", discordId) + field("code", code));
+    }
+
+    public synchronized void verificationChallengeFound(long timestamp, String discordId, String code, String username,
+        UUID uuid, String ip, long expiresAt) {
+        write(
+            timestamp,
+            "verification_challenge_found",
+            field("discord_id", discordId) + field("code", code)
+                + field("username", username)
+                + field("uuid", uuid)
+                + field("ip", ip)
+                + field("expires_at", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(expiresAt))));
+    }
+
+    public synchronized void verificationRejected(long timestamp, String discordId, String code, String reason,
+        String username, UUID uuid) {
+        write(
+            timestamp,
+            "verification_rejected",
+            field("discord_id", discordId) + field("code", code)
+                + field("reason", reason)
+                + field("username", username)
+                + field("uuid", uuid));
+    }
+
+    public synchronized void verificationPersistFailed(long timestamp, String discordId, String code, String username,
+        UUID uuid, String ip) {
+        write(
+            timestamp,
+            "verification_persist_failed",
+            field("discord_id", discordId) + field("code", code)
+                + field("username", username)
+                + field("uuid", uuid)
+                + field("ip", ip));
+    }
+
     private void write(long timestamp, String event, String fields) {
         if (!enabled) return;
         try {
