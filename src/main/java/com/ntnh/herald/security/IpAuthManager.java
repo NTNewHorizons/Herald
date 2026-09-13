@@ -129,9 +129,13 @@ public final class IpAuthManager implements Closeable {
         ChallengeSelection selection;
         try {
             synchronized (challengeLock) {
-                purgeExpiredLocked(now);
                 String key = challengeKey(uuid, address);
                 IpAuthChallenge challenge = challenges.get(key);
+                boolean replacedExpired = challenge != null && challenge.isExpired(now);
+                String expiredCode = replacedExpired ? challenge.getCode() : null;
+                long expiredAt = replacedExpired ? challenge.getExpiresAt() : 0;
+                purgeExpiredLocked(now);
+                if (replacedExpired) challenge = null;
                 boolean created = challenge == null;
                 if (created) {
                     challenge = new IpAuthChallenge(
@@ -146,7 +150,7 @@ public final class IpAuthManager implements Closeable {
                 boolean sendDm = settings.isDmOnNewIp() && linkedDiscordId != null
                     && challenge.canAttemptDm(now, settings.getDmCooldownMillis());
                 if (sendDm) challenge.markDmAttempt(now);
-                selection = new ChallengeSelection(challenge, created, sendDm);
+                selection = new ChallengeSelection(challenge, created, replacedExpired, expiredCode, expiredAt, sendDm);
             }
         } catch (IllegalStateException e) {
             LOG.error("Could not allocate a Herald IP verification challenge", e);
@@ -158,6 +162,42 @@ public final class IpAuthManager implements Closeable {
                 false,
                 false);
         }
+
+        String challengeCode = "v" + selection.challenge.getCode();
+        if (selection.replacedExpired) LOG.debug(
+            "Herald IP-auth challenge expired and replaced: username=" + username
+                + " uuid="
+                + uuid
+                + " ip="
+                + address.getText()
+                + " discord_id="
+                + linkedDiscordId
+                + " expired_code=v"
+                + selection.expiredCode
+                + " expired_at="
+                + selection.expiredAt
+                + " replacement_code="
+                + challengeCode
+                + " created_at="
+                + selection.challenge.getCreatedAt()
+                + " expires_at="
+                + selection.challenge.getExpiresAt());
+        else LOG.debug(
+            "Herald IP-auth challenge " + (selection.created ? "created" : "reused")
+                + ": username="
+                + username
+                + " uuid="
+                + uuid
+                + " ip="
+                + address.getText()
+                + " discord_id="
+                + linkedDiscordId
+                + " code="
+                + challengeCode
+                + " created_at="
+                + selection.challenge.getCreatedAt()
+                + " expires_at="
+                + selection.challenge.getExpiresAt());
 
         auditLogger.failedIpCheck(
             now,
@@ -276,42 +316,224 @@ public final class IpAuthManager implements Closeable {
     public String handleDiscordMessage(String content, String authorDiscordId) {
         String command = content == null ? "" : content.trim();
         if (!isVerificationCommand(command)) return null;
-        if (!settings.isEnabled()) return "Herald IP verification is disabled.";
 
         long now = clock.getAsLong();
+        LOG.debug("Herald IP-auth handler entered: discord_id=" + authorDiscordId + " code=" + command);
+        auditLogger.verificationReceived(now, authorDiscordId, command);
+        if (!settings.isEnabled()) {
+            LOG.debug(
+                "Herald IP-auth verification rejected because IP auth is disabled: discord_id=" + authorDiscordId
+                    + " code="
+                    + command);
+            auditLogger.verificationRejected(now, authorDiscordId, command, "disabled", null, null);
+            return "Herald IP verification is disabled.";
+        }
+
         String submittedCode = command.substring(1);
         IpAuthChallenge challenge;
+        IpAuthChallenge expiredChallenge = null;
         synchronized (challengeLock) {
-            purgeExpiredLocked(now);
             challenge = findByCodeLocked(submittedCode);
+            if (challenge != null && challenge.isExpired(now)) {
+                expiredChallenge = challenge;
+                challenges.remove(challengeKey(challenge.getUuid(), challenge.getAddress()));
+                challenge = null;
+            }
+            purgeExpiredLocked(now);
         }
-        if (challenge == null) return "That IP verification challenge is invalid or expired.";
+        if (expiredChallenge != null) {
+            LOG.debug(
+                "Herald IP-auth challenge lookup: discord_id=" + authorDiscordId
+                    + " code="
+                    + command
+                    + " result=found status=expired username="
+                    + expiredChallenge.getUsername()
+                    + " uuid="
+                    + expiredChallenge.getUuid()
+                    + " challenge_code=v"
+                    + expiredChallenge.getCode()
+                    + " expires_at="
+                    + expiredChallenge.getExpiresAt());
+            auditLogger.verificationChallengeFound(
+                now,
+                authorDiscordId,
+                "v" + expiredChallenge.getCode(),
+                expiredChallenge.getUsername(),
+                expiredChallenge.getUuid(),
+                expiredChallenge.getAddress()
+                    .getText(),
+                expiredChallenge.getExpiresAt());
+            auditLogger.verificationRejected(
+                now,
+                authorDiscordId,
+                command,
+                "expired",
+                expiredChallenge.getUsername(),
+                expiredChallenge.getUuid());
+            return "That IP verification challenge is invalid or expired.";
+        }
+        if (challenge == null) {
+            LOG.debug(
+                "Herald IP-auth challenge lookup: discord_id=" + authorDiscordId
+                    + " code="
+                    + command
+                    + " result=not_found");
+            auditLogger.verificationRejected(now, authorDiscordId, command, "challenge_not_found", null, null);
+            return "That IP verification challenge is invalid or expired.";
+        }
+
+        LOG.debug(
+            "Herald IP-auth challenge lookup: discord_id=" + authorDiscordId
+                + " code="
+                + command
+                + " result=found status=valid username="
+                + challenge.getUsername()
+                + " uuid="
+                + challenge.getUuid()
+                + " challenge_code=v"
+                + challenge.getCode()
+                + " expires_at="
+                + challenge.getExpiresAt());
+        auditLogger.verificationChallengeFound(
+            now,
+            authorDiscordId,
+            "v" + challenge.getCode(),
+            challenge.getUsername(),
+            challenge.getUuid(),
+            challenge.getAddress()
+                .getText(),
+            challenge.getExpiresAt());
 
         String currentDiscordId = resolveCurrentDiscordId(challenge.getUuid());
         if (currentDiscordId == null || !currentDiscordId.equals(authorDiscordId)) {
+            LOG.debug(
+                "Herald IP-auth Discord sender mismatch: username=" + challenge.getUsername()
+                    + " uuid="
+                    + challenge.getUuid()
+                    + " code="
+                    + command
+                    + " sender_discord_id="
+                    + authorDiscordId
+                    + " linked_discord_id="
+                    + currentDiscordId);
+            auditLogger.verificationRejected(
+                now,
+                authorDiscordId,
+                command,
+                "discord_id_mismatch",
+                challenge.getUsername(),
+                challenge.getUuid());
             return "That IP verification challenge is invalid or is not linked to your Discord account.";
         }
+        LOG.debug(
+            "Herald IP-auth Discord sender matched current link: username=" + challenge.getUsername()
+                + " uuid="
+                + challenge.getUuid()
+                + " code="
+                + command
+                + " discord_id="
+                + authorDiscordId);
 
         IpAuthStore.Authorization authorization;
         synchronized (challengeLock) {
             IpAuthChallenge current = challenges.get(challengeKey(challenge.getUuid(), challenge.getAddress()));
             if (current != challenge || challenge.isExpired(clock.getAsLong())) {
+                String reason = current != challenge ? "challenge_no_longer_pending" : "expired";
+                LOG.debug(
+                    "Herald IP-auth challenge rejected before persistence: username=" + challenge
+                        .getUsername() + " uuid=" + challenge.getUuid() + " code=" + command + " reason=" + reason);
+                auditLogger.verificationRejected(
+                    now,
+                    authorDiscordId,
+                    command,
+                    reason,
+                    challenge.getUsername(),
+                    challenge.getUuid());
                 return "That IP verification challenge is invalid or expired.";
             }
+            LOG.debug(
+                "Herald IP-auth challenge still valid before persistence: username=" + challenge.getUsername()
+                    + " uuid="
+                    + challenge.getUuid()
+                    + " code="
+                    + command
+                    + " expires_at="
+                    + challenge.getExpiresAt());
 
             // Re-check while consuming so unlinking or relinking invalidates the old identity immediately.
             currentDiscordId = resolveCurrentDiscordId(challenge.getUuid());
             if (currentDiscordId == null || !currentDiscordId.equals(authorDiscordId)) {
+                LOG.debug(
+                    "Herald IP-auth Discord sender mismatch on consume: username=" + challenge.getUsername()
+                        + " uuid="
+                        + challenge.getUuid()
+                        + " code="
+                        + command
+                        + " sender_discord_id="
+                        + authorDiscordId
+                        + " linked_discord_id="
+                        + currentDiscordId);
+                auditLogger.verificationRejected(
+                    now,
+                    authorDiscordId,
+                    command,
+                    "discord_id_mismatch_on_consume",
+                    challenge.getUsername(),
+                    challenge.getUuid());
                 return "That IP verification challenge is invalid or is not linked to your Discord account.";
             }
+            LOG.debug(
+                "Herald IP-auth persistence attempted: username=" + challenge.getUsername()
+                    + " uuid="
+                    + challenge.getUuid()
+                    + " ip="
+                    + challenge.getAddress()
+                        .getText()
+                    + " discord_id="
+                    + authorDiscordId
+                    + " code="
+                    + command);
             try {
                 authorization = store
                     .authorize(challenge.getUuid(), challenge.getAddress(), now, settings.getMaxTrustedIps());
             } catch (IOException e) {
-                LOG.error("Could not persist authorized IP for " + challenge.getUuid(), e);
+                LOG.error(
+                    "Herald IP-auth persistence failed: username=" + challenge.getUsername()
+                        + " uuid="
+                        + challenge.getUuid()
+                        + " ip="
+                        + challenge.getAddress()
+                            .getText()
+                        + " discord_id="
+                        + authorDiscordId
+                        + " code="
+                        + command,
+                    e);
+                auditLogger.verificationPersistFailed(
+                    now,
+                    authorDiscordId,
+                    command,
+                    challenge.getUsername(),
+                    challenge.getUuid(),
+                    challenge.getAddress()
+                        .getText());
                 return "The IP could not be saved. Please try the same verification code again.";
             }
+            LOG.debug(
+                "Herald IP-auth persistence succeeded: username=" + challenge.getUsername()
+                    + " uuid="
+                    + challenge.getUuid()
+                    + " ip="
+                    + challenge.getAddress()
+                        .getText()
+                    + " discord_id="
+                    + authorDiscordId
+                    + " code="
+                    + command);
             challenges.remove(challengeKey(challenge.getUuid(), challenge.getAddress()));
+            LOG.debug(
+                "Herald IP-auth challenge removed after authorization: username=" + challenge
+                    .getUsername() + " uuid=" + challenge.getUuid() + " code=" + command);
         }
 
         IpAddress evicted = authorization.getEvictedAddress();
@@ -323,6 +545,17 @@ public final class IpAuthManager implements Closeable {
                 .getText(),
             authorDiscordId,
             evicted != null ? evicted.getText() : null);
+        LOG.info(
+            "Herald IP-auth authorization succeeded: username=" + challenge.getUsername()
+                + " uuid="
+                + challenge.getUuid()
+                + " ip="
+                + challenge.getAddress()
+                    .getText()
+                + " discord_id="
+                + authorDiscordId
+                + " code="
+                + command);
         return "IP authorized for " + challenge.getUsername() + ". Reconnect to the Minecraft server.";
     }
 
@@ -507,11 +740,18 @@ public final class IpAuthManager implements Closeable {
 
         private final IpAuthChallenge challenge;
         private final boolean created;
+        private final boolean replacedExpired;
+        private final String expiredCode;
+        private final long expiredAt;
         private final boolean sendDm;
 
-        private ChallengeSelection(IpAuthChallenge challenge, boolean created, boolean sendDm) {
+        private ChallengeSelection(IpAuthChallenge challenge, boolean created, boolean replacedExpired,
+            String expiredCode, long expiredAt, boolean sendDm) {
             this.challenge = challenge;
             this.created = created;
+            this.replacedExpired = replacedExpired;
+            this.expiredCode = expiredCode;
+            this.expiredAt = expiredAt;
             this.sendDm = sendDm;
         }
     }

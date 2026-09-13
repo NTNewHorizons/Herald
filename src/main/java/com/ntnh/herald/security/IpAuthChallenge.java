@@ -41,6 +41,10 @@ final class IpAuthChallenge {
         return createdAt;
     }
 
+    long getExpiresAt() {
+        return expiresAt;
+    }
+
     boolean isExpired(long now) {
         return now >= expiresAt;
     }
