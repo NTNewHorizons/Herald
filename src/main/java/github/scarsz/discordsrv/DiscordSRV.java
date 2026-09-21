@@ -94,6 +94,7 @@ import com.google.gson.GsonBuilder;
 import com.neovisionaries.ws.client.DualStackMode;
 import com.neovisionaries.ws.client.ProxySettings;
 import com.neovisionaries.ws.client.WebSocketFactory;
+import com.ntnh.herald.MinecraftConsoleLogBridge;
 import com.ntnh.herald.MinecraftServerCommandOutputForwarder;
 
 import alexh.weak.Dynamic;
@@ -1580,6 +1581,7 @@ public class DiscordSRV extends JavaPlugin {
                     config.setSuffixer(item -> placeholders.apply("DiscordConsoleChannelSuffix", item));
                 }).attachLog4jLogging()
                     .schedule();
+                MinecraftConsoleLogBridge.attach(consoleAppender);
             } else {
                 DiscordSRV.info(LangUtil.InternalMessage.NOT_FORWARDING_CONSOLE_OUTPUT.toString());
             }
@@ -2019,7 +2021,10 @@ public class DiscordSRV extends JavaPlugin {
                 if (modernCancellationDetector != null) modernCancellationDetector.close();
 
                 // shutdown the console appender
-                if (consoleAppender != null) consoleAppender.shutdown();
+                if (consoleAppender != null) {
+                    MinecraftConsoleLogBridge.detach();
+                    consoleAppender.shutdown();
+                }
 
                 // remove the jda filter
                 if (jdaFilter != null) {
