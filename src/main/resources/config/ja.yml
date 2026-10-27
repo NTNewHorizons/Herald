@@ -70,6 +70,9 @@ ForcedLanguage: none
 ForceTLSv12: true
 NoopHostnameVerifier: false
 MaximumAttemptsForSystemDNSBeforeUsingFallbackDNS: 3
+# Herald: stop the Minecraft server when Discord startup hits a JVM classloading/linkage failure.
+# Intended for servers supervised by something that automatically restarts stopped processes.
+StopServerOnDiscordClassLoadingFailure: false
 TimestampFormat: EEE, d. MMM yyyy HH:mm:ss z
 DateFormat: yyyy-MM-dd
 # https://docs.discordsrv.com/config/#Timezone
