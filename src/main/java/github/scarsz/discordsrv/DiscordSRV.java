@@ -51,6 +51,8 @@ import net.dv8tion.jda.api.requests.restaction.MessageAction;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 import net.dv8tion.jda.api.utils.SessionControllerAdapter;
 import net.dv8tion.jda.api.utils.cache.CacheFlag;
+import net.dv8tion.jda.internal.requests.RestActionImpl;
+import net.dv8tion.jda.internal.requests.Route;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.TextReplacementConfig;
 import net.minecraft.server.MinecraftServer;
@@ -239,6 +241,7 @@ public class DiscordSRV extends JavaPlugin {
     private volatile JDA jda = null;
     private ExecutorService callbackThreadPool;
     private static final long CONNECTION_TIMEOUT_SECONDS = 120;
+    private static final long GATEWAY_REQUEST_TIMEOUT_SECONDS = 60;
     private static final long[] CONNECTION_RETRY_DELAYS_SECONDS = { 30, 120, 300 };
     private final Object connectionLifecycleLock = new Object();
     private final Object connectionTransitionLock = new Object();
@@ -704,8 +707,7 @@ public class DiscordSRV extends JavaPlugin {
         try {
             init(attempt);
         } catch (Throwable throwable) {
-            error("Discord connection attempt " + attempt.generation + " terminated unexpectedly", throwable);
-            failConnectionAttempt(attempt, "unexpected initialization error", true);
+            handleConnectionAttemptThrowable(attempt, throwable, "initialization");
         } finally {
             attempt.thread = null;
         }
@@ -764,6 +766,80 @@ public class DiscordSRV extends JavaPlugin {
         } else {
             error("Discord connection attempt " + attempt.generation + " failed: " + reason);
         }
+    }
+
+    private void handleConnectionAttemptThrowable(
+        DiscordConnectionAttempt attempt,
+        Throwable throwable,
+        String source) {
+        if (!isCurrentConnectionAttempt(attempt)) return;
+
+        boolean classLoadingFailure = isClassLoadingFailure(throwable);
+        error(
+            "Discord connection attempt " + attempt.generation
+                + " failed in "
+                + source
+                + (classLoadingFailure ? " due to a class loading/linkage error" : ""),
+            throwable);
+
+        boolean stopServer = classLoadingFailure
+            && config.getBooleanElse("StopServerOnDiscordClassLoadingFailure", false);
+        failConnectionAttempt(
+            attempt,
+            classLoadingFailure ? "class loading/linkage failure in " + source : "unexpected failure in " + source,
+            !stopServer);
+
+        if (stopServer) {
+            error(
+                "StopServerOnDiscordClassLoadingFailure is enabled; requesting a graceful Minecraft server shutdown "
+                    + "so an external supervisor can restart with a clean JVM.");
+            MinecraftServer server = MinecraftServer.getServer();
+            if (server != null) {
+                server.initiateShutdown();
+            } else {
+                error("Could not stop the server after the class loading failure because MinecraftServer is null.");
+            }
+        }
+    }
+
+    private static boolean isClassLoadingFailure(Throwable throwable) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (current instanceof LinkageError || current instanceof ClassNotFoundException) return true;
+        }
+        return false;
+    }
+
+    private void reportJdaExecutorFailure(
+        DiscordConnectionAttempt attempt,
+        String executorName,
+        Runnable runnable,
+        Throwable throwable) {
+        Throwable failure = getExecutorFailure(runnable, throwable);
+        if (failure == null) return;
+        try {
+            connectionLifecycleExecutor
+                .execute(() -> handleConnectionAttemptThrowable(attempt, failure, executorName));
+        } catch (RejectedExecutionException ignored) {}
+    }
+
+    private static Throwable getExecutorFailure(Runnable runnable, Throwable throwable) {
+        if (throwable != null) return throwable;
+        if (!(runnable instanceof Future<?>)) return null;
+
+        Future<?> future = (Future<?>) runnable;
+        if (!future.isDone()) return null;
+        try {
+            future.get();
+        } catch (CancellationException ignored) {
+            return null;
+        } catch (InterruptedException e) {
+            Thread.currentThread()
+                .interrupt();
+            return null;
+        } catch (ExecutionException e) {
+            return e.getCause();
+        }
+        return null;
     }
 
     private boolean isCurrentConnectionAttempt(DiscordConnectionAttempt attempt) {
@@ -829,6 +905,7 @@ public class DiscordSRV extends JavaPlugin {
         private volatile ExecutorService callbackPool;
         private volatile ScheduledExecutorService gatewayPool;
         private volatile ScheduledExecutorService rateLimitPool;
+        private volatile CompletableFuture<?> gatewayFuture;
         private volatile boolean connectionReady;
         private volatile boolean retired;
 
@@ -876,6 +953,15 @@ public class DiscordSRV extends JavaPlugin {
             if (retired) createdPool.shutdownNow();
         }
 
+        private synchronized void captureGatewayFuture(CompletableFuture<?> createdFuture) {
+            gatewayFuture = createdFuture;
+            if (retired) createdFuture.cancel(true);
+        }
+
+        private synchronized void clearGatewayFuture(CompletableFuture<?> completedFuture) {
+            if (gatewayFuture == completedFuture) gatewayFuture = null;
+        }
+
         private synchronized void markRetired() {
             retired = true;
             if (timeout != null) timeout.cancel(false);
@@ -884,6 +970,10 @@ public class DiscordSRV extends JavaPlugin {
         private synchronized void closeResources() {
             retired = true;
             if (timeout != null) timeout.cancel(false);
+            if (gatewayFuture != null) {
+                gatewayFuture.cancel(true);
+                gatewayFuture = null;
+            }
             if (httpClient != null) {
                 httpClient.dispatcher()
                     .cancelAll();
@@ -1362,7 +1452,14 @@ public class DiscordSRV extends JavaPlugin {
             .setNameFormat("DiscordSRV - JDA Rate Limit")
             .setDaemon(true)
             .build();
-        final ScheduledExecutorService rateLimitThreadPool = new ScheduledThreadPoolExecutor(5, rateLimitThreadFactory);
+        final ScheduledExecutorService rateLimitThreadPool = new ScheduledThreadPoolExecutor(5, rateLimitThreadFactory) {
+
+            @Override
+            protected void afterExecute(Runnable runnable, Throwable throwable) {
+                super.afterExecute(runnable, throwable);
+                reportJdaExecutorFailure(attempt, "JDA rate-limit worker", runnable, throwable);
+            }
+        };
         attempt.captureRateLimitPool(rateLimitThreadPool);
 
         // log in to discord
@@ -1393,7 +1490,31 @@ public class DiscordSRV extends JavaPlugin {
                     @Override
                     public String getGateway(@NotNull JDA api) {
                         attempt.captureJda(api);
-                        return super.getGateway(api);
+                        CompletableFuture<String> gatewayFuture = new RestActionImpl<String>(
+                            api,
+                            Route.Misc.GATEWAY.compile(),
+                            (response, request) -> response.getObject()
+                                .getString("url")).priority()
+                                    .submit();
+                        attempt.captureGatewayFuture(gatewayFuture);
+                        try {
+                            return gatewayFuture.get(GATEWAY_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            gatewayFuture.cancel(true);
+                            Thread.currentThread()
+                                .interrupt();
+                            throw new CompletionException("Discord gateway lookup was interrupted", e);
+                        } catch (ExecutionException e) {
+                            Throwable cause = e.getCause();
+                            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
+                            if (cause instanceof Error) throw (Error) cause;
+                            throw new CompletionException("Discord gateway lookup failed", cause);
+                        } catch (TimeoutException e) {
+                            gatewayFuture.cancel(true);
+                            throw new CompletionException("Discord gateway lookup timed out", e);
+                        } finally {
+                            attempt.clearGatewayFuture(gatewayFuture);
+                        }
                     }
                 })
                 .setAutoReconnect(true)
@@ -1448,6 +1569,7 @@ public class DiscordSRV extends JavaPlugin {
             }
             return;
         } catch (Exception e) {
+            if (!isCurrentConnectionAttempt(attempt)) return;
             if (e instanceof IllegalStateException && "Was shutdown trying to await status".equals(e.getMessage())) {
                 // already logged by JDA
                 failConnectionAttempt(attempt, "JDA was shut down while connecting", !shuttingDown);
