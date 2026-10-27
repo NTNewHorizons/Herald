@@ -768,9 +768,7 @@ public class DiscordSRV extends JavaPlugin {
         }
     }
 
-    private void handleConnectionAttemptThrowable(
-        DiscordConnectionAttempt attempt,
-        Throwable throwable,
+    private void handleConnectionAttemptThrowable(DiscordConnectionAttempt attempt, Throwable throwable,
         String source) {
         if (!isCurrentConnectionAttempt(attempt)) return;
 
@@ -809,16 +807,12 @@ public class DiscordSRV extends JavaPlugin {
         return false;
     }
 
-    private void reportJdaExecutorFailure(
-        DiscordConnectionAttempt attempt,
-        String executorName,
-        Runnable runnable,
+    private void reportJdaExecutorFailure(DiscordConnectionAttempt attempt, String executorName, Runnable runnable,
         Throwable throwable) {
         Throwable failure = getExecutorFailure(runnable, throwable);
         if (failure == null) return;
         try {
-            connectionLifecycleExecutor
-                .execute(() -> handleConnectionAttemptThrowable(attempt, failure, executorName));
+            connectionLifecycleExecutor.execute(() -> handleConnectionAttemptThrowable(attempt, failure, executorName));
         } catch (RejectedExecutionException ignored) {}
     }
 
@@ -1452,7 +1446,9 @@ public class DiscordSRV extends JavaPlugin {
             .setNameFormat("DiscordSRV - JDA Rate Limit")
             .setDaemon(true)
             .build();
-        final ScheduledExecutorService rateLimitThreadPool = new ScheduledThreadPoolExecutor(5, rateLimitThreadFactory) {
+        final ScheduledExecutorService rateLimitThreadPool = new ScheduledThreadPoolExecutor(
+            5,
+            rateLimitThreadFactory) {
 
             @Override
             protected void afterExecute(Runnable runnable, Throwable throwable) {
