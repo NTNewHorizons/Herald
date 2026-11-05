@@ -246,6 +246,17 @@ public class ApiManager extends ListenerAdapter {
             }
         }
 
+        if (guildCommandUpdateActions.isEmpty()) {
+            // JDA's RestAction.allOf rejects empty collections. There are no commands to update,
+            // so leave all existing Discord slash commands untouched.
+            DiscordSRV.info(
+                "No slash commands to register (" + untouchedGuilds
+                    + " guilds without Herald commands, "
+                    + cancelledGuilds
+                    + " cancelled); leaving existing Discord slash commands untouched");
+            return;
+        }
+
         int finalCancelledGuilds = cancelledGuilds;
         int finalUntouchedGuilds = untouchedGuilds;
         int finalConflictingCommands = conflictingCommands;
