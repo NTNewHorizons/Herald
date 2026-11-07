@@ -126,6 +126,24 @@ public final class IpAuthManager implements Closeable {
                 false);
         }
 
+        if (linkedDiscordId == null) {
+            auditLogger.failedIpCheck(
+                now,
+                username,
+                uuid,
+                address.getText(),
+                null,
+                initialEnrollment,
+                "not_created_account_unlinked");
+            return LoginResult.rejected(
+                "This server is misconfigured.\n\n"
+                    + "IP authentication requires Discord account linking, but no Discord account is linked. "
+                    + "Please contact a server administrator.",
+                null,
+                false,
+                false);
+        }
+
         ChallengeSelection selection;
         try {
             synchronized (challengeLock) {
@@ -177,7 +195,7 @@ public final class IpAuthManager implements Closeable {
         }
 
         return LoginResult.rejected(
-            buildKickMessage(selection.challenge.getCode(), linkedDiscordId, selection.sendDm),
+            buildKickMessage(selection.challenge.getCode(), selection.sendDm),
             selection.challenge.getCode(),
             selection.created,
             selection.sendDm);
@@ -434,12 +452,10 @@ public final class IpAuthManager implements Closeable {
             + "\n\nIf this was not you, do nothing. The connection was rejected.";
     }
 
-    private static String buildKickMessage(String code, String linkedDiscordId, boolean dmAttempted) {
+    private static String buildKickMessage(String code, boolean dmAttempted) {
         StringBuilder message = new StringBuilder(
             "New IP address detected.\n\nAuthorize this IP by messaging the linked Discord bot:\n\nv").append(code);
-        if (linkedDiscordId == null) {
-            message.append("\n\nNo Discord account is currently linked. Link one before authorizing this IP.");
-        } else if (dmAttempted) {
+        if (dmAttempted) {
             message.append("\n\nA DM was also sent to your linked Discord account.");
         }
         return message.append("\n\nReconnect after authorization.")
