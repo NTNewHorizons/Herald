@@ -12,7 +12,7 @@ public final class HeraldConfig {
     private static final String IP_AUTHENTICATION = "ipAuthentication";
     private static final String IP_AUTHENTICATION_AUDIT = "ipAuthentication.audit";
 
-    public static boolean ipAuthenticationEnabled = true;
+    public static boolean ipAuthenticationEnabled = false;
     public static int maxTrustedIps = 1;
     public static int codeDigits = 4;
     public static int codeExpirySeconds = 300;
@@ -31,7 +31,9 @@ public final class HeraldConfig {
             "enabled",
             IP_AUTHENTICATION,
             ipAuthenticationEnabled,
-            "Reject untrusted login IPs until the currently linked Discord account authorizes them.");
+            "Reject untrusted login IPs until the currently linked Discord account authorizes them. "
+                + "Discord account linking is required: enable 'Require linked account to play' in DiscordSRV "
+                + "linking.yml and ensure unlinked players cannot bypass it.");
         maxTrustedIps = configuration.getInt(
             "maxTrustedIps",
             IP_AUTHENTICATION,
