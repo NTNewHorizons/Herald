@@ -1,6 +1,9 @@
 package com.ntnh.herald.security;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.net.InetAddress;
@@ -27,6 +30,39 @@ class IpAuthInitialEnrollmentTest {
     @AfterEach
     void closeManagers() throws Exception {
         for (IpAuthManager manager : managers) manager.close();
+    }
+
+    @Test
+    void unlinkedPlayerGetsConfigurationErrorWithoutChallenge() throws Exception {
+        Fixture fixture = fixture();
+        UUID uuid = UUID.randomUUID();
+        InetAddress address = InetAddress.getByName("192.0.2.60");
+
+        IpAuthManager.LoginResult result = fixture.manager.checkLogin("Alice", uuid, address);
+
+        assertFalse(result.isAllowed());
+        assertTrue(result.getKickMessage().contains("server is misconfigured"));
+        assertTrue(result.getKickMessage().contains("IP authentication requires Discord account linking"));
+        assertNull(result.getCode());
+        assertFalse(result.isChallengeCreated());
+        assertFalse(result.isDmAttempted());
+        assertEquals(0, fixture.manager.getStatus(uuid).getPendingChallenges());
+        assertFalse(fixture.isTrusted(uuid, address));
+    }
+
+    @Test
+    void linkedPlayerStillGetsIpVerificationChallenge() throws Exception {
+        Fixture fixture = fixture();
+        UUID uuid = UUID.randomUUID();
+        InetAddress address = InetAddress.getByName("192.0.2.61");
+        fixture.links.put(uuid, "discord-a");
+
+        IpAuthManager.LoginResult result = fixture.manager.checkLogin("Alice", uuid, address);
+
+        assertFalse(result.isAllowed());
+        assertNotNull(result.getCode());
+        assertTrue(result.isChallengeCreated());
+        assertEquals(1, fixture.manager.getStatus(uuid).getPendingChallenges());
     }
 
     @Test
