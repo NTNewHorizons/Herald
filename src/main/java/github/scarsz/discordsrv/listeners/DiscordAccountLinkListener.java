@@ -45,29 +45,77 @@ public class DiscordAccountLinkListener extends ListenerAdapter {
 
     @Override
     public void onPrivateMessageReceived(PrivateMessageReceivedEvent event) {
+        String authorDiscordId = event.getAuthor()
+            .getId();
         // don't process messages sent by the bot
-        if (event.getAuthor()
-            .getId()
-            .equals(
-                event.getJDA()
-                    .getSelfUser()
-                    .getId()))
+        if (authorDiscordId.equals(
+            event.getJDA()
+                .getSelfUser()
+                .getId()))
             return;
 
-        DiscordSRV.api.callEvent(new DiscordPrivateMessageReceivedEvent(event));
+        String content = event.getMessage()
+            .getContentRaw()
+            .trim();
+        DiscordSRV.debug("Herald IP-auth private DM listener entered: discord_id=" + authorDiscordId);
+        boolean ipVerificationMessage = HeraldDiscordSRV.getInstance()
+            .isIpVerificationMessage(content);
+        String verificationCode = ipVerificationMessage ? content : null;
+        if (ipVerificationMessage) DiscordSRV
+            .debug("Herald IP-auth DM syntax matched: discord_id=" + authorDiscordId + " code=" + verificationCode);
 
-        String ipVerificationReply = HeraldDiscordSRV.getInstance()
-            .handleIpVerificationMessage(
-                event.getMessage()
-                    .getContentRaw()
-                    .trim(),
-                event.getAuthor()
-                    .getId());
-        if (ipVerificationReply != null) {
-            event.getMessage()
-                .reply(ipVerificationReply)
-                .queue();
-            return;
+        try {
+            if (ipVerificationMessage) DiscordSRV.debug(
+                "Herald IP-auth about to dispatch DiscordPrivateMessageReceivedEvent: discord_id=" + authorDiscordId
+                    + " code="
+                    + verificationCode);
+            DiscordSRV.api.callEvent(new DiscordPrivateMessageReceivedEvent(event));
+            if (ipVerificationMessage) DiscordSRV.debug(
+                "Herald IP-auth returned from DiscordPrivateMessageReceivedEvent dispatch: discord_id="
+                    + authorDiscordId
+                    + " code="
+                    + verificationCode);
+
+            if (ipVerificationMessage) {
+                DiscordSRV.debug(
+                    "Herald IP-auth about to call verification handler: discord_id=" + authorDiscordId
+                        + " code="
+                        + verificationCode);
+                String ipVerificationReply = HeraldDiscordSRV.getInstance()
+                    .handleIpVerificationMessage(content, authorDiscordId);
+                DiscordSRV.debug(
+                    "Herald IP-auth verification handler returned: discord_id=" + authorDiscordId
+                        + " code="
+                        + verificationCode
+                        + " reply="
+                        + (ipVerificationReply != null ? "present" : "none"));
+                if (ipVerificationReply != null) {
+                    event.getMessage()
+                        .reply(ipVerificationReply)
+                        .queue(
+                            ignored -> DiscordSRV.debug(
+                                "Herald IP-auth Discord reply sent: discord_id=" + authorDiscordId
+                                    + " code="
+                                    + verificationCode),
+                            error -> DiscordSRV.error(
+                                "Herald IP-auth Discord reply failed: discord_id=" + authorDiscordId
+                                    + " code="
+                                    + verificationCode,
+                                error));
+                    DiscordSRV.debug(
+                        "Herald IP-auth Discord reply queued: discord_id=" + authorDiscordId
+                            + " code="
+                            + verificationCode);
+                    return;
+                }
+            }
+        } catch (RuntimeException | Error error) {
+            if (ipVerificationMessage) DiscordSRV.error(
+                "Herald IP-auth private DM processing failed: discord_id=" + authorDiscordId
+                    + " code="
+                    + verificationCode,
+                error);
+            throw error;
         }
 
         // don't link accounts if config option is disabled
@@ -79,8 +127,7 @@ public class DiscordAccountLinkListener extends ListenerAdapter {
             .process(
                 event.getMessage()
                     .getContentRaw(),
-                event.getAuthor()
-                    .getId());
+                authorDiscordId);
         if (reply != null) event.getMessage()
             .reply(reply)
             .queue();
