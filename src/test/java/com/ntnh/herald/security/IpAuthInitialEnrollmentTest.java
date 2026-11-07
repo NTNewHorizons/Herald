@@ -41,12 +41,19 @@ class IpAuthInitialEnrollmentTest {
         IpAuthManager.LoginResult result = fixture.manager.checkLogin("Alice", uuid, address);
 
         assertFalse(result.isAllowed());
-        assertTrue(result.getKickMessage().contains("server is misconfigured"));
-        assertTrue(result.getKickMessage().contains("IP authentication requires Discord account linking"));
+        assertTrue(
+            result.getKickMessage()
+                .contains("server is misconfigured"));
+        assertTrue(
+            result.getKickMessage()
+                .contains("IP authentication requires Discord account linking"));
         assertNull(result.getCode());
         assertFalse(result.isChallengeCreated());
         assertFalse(result.isDmAttempted());
-        assertEquals(0, fixture.manager.getStatus(uuid).getPendingChallenges());
+        assertEquals(
+            0,
+            fixture.manager.getStatus(uuid)
+                .getPendingChallenges());
         assertFalse(fixture.isTrusted(uuid, address));
     }
 
@@ -62,7 +69,10 @@ class IpAuthInitialEnrollmentTest {
         assertFalse(result.isAllowed());
         assertNotNull(result.getCode());
         assertTrue(result.isChallengeCreated());
-        assertEquals(1, fixture.manager.getStatus(uuid).getPendingChallenges());
+        assertEquals(
+            1,
+            fixture.manager.getStatus(uuid)
+                .getPendingChallenges());
     }
 
     @Test
