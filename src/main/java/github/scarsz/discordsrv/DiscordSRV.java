@@ -1497,6 +1497,11 @@ public class DiscordSRV extends JavaPlugin {
                 return true;
             }
         });
+        // Herald: ServerUtilities (GTNH) /vanish
+        if (com.ntnh.herald.compat.ServerUtilitiesVanishHook.isAvailable()) {
+            DiscordSRV.info("Enabling ServerUtilities vanish hook");
+            pluginHooks.add(new com.ntnh.herald.compat.ServerUtilitiesVanishHook());
+        }
         if (PluginUtil.pluginHookIsEnabled("PlaceholderAPI")) {
             try {
                 DiscordSRV.info(
