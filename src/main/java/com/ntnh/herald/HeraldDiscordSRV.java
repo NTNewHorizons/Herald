@@ -201,7 +201,27 @@ public class HeraldDiscordSRV {
     }
 
     public String handleIpVerificationMessage(String content, String authorDiscordId) {
-        return ipAuthManager != null ? ipAuthManager.handleDiscordMessage(content, authorDiscordId) : null;
+        log.debug("Herald IP-auth bridge handler entered: discord_id=" + authorDiscordId + " code=" + content);
+        if (ipAuthManager == null) {
+            log.warn(
+                "Herald IP-auth bridge handler has no manager: discord_id=" + authorDiscordId + " code=" + content);
+            return null;
+        }
+        try {
+            String reply = ipAuthManager.handleDiscordMessage(content, authorDiscordId);
+            log.debug(
+                "Herald IP-auth bridge handler returned: discord_id=" + authorDiscordId
+                    + " code="
+                    + content
+                    + " reply="
+                    + (reply != null ? "present" : "none"));
+            return reply;
+        } catch (RuntimeException | Error error) {
+            log.error(
+                "Herald IP-auth bridge handler failed: discord_id=" + authorDiscordId + " code=" + content,
+                error);
+            throw error;
+        }
     }
 
     public boolean isIpVerificationMessage(String content) {
